@@ -1,19 +1,17 @@
 .INCLUDE "header.inc"
 .INCLUDE "InitSNES.asm"
 
+
+.BANK 0 SLOT 0
+.ORG 0
+.SECTION "MainCode"
+
+
 ; Memory layout:
 ; 00-0F: scratch space for functions.
 ; 10-13: controller state.
 ; 14-17: 32-bit counter of vblanks.
 ; 20-22: [rgb] color values to use for background color.
-
-;========================
-; Start
-;========================
-
-.BANK 0 SLOT 0
-.ORG 0
-.SECTION "MainCode"
 
 
 Start:
@@ -48,9 +46,11 @@ Start:
     jsr FillScratch
 
 
-Loop:
-    wai
-    jmp Loop
+
+MainLoop:
+    wai  ; Wait for interrupt.
+    jmp MainLoop
+
 
 
 VBlankHandler:
@@ -61,8 +61,9 @@ VBlankHandler:
     rti
 
 
+
 VBlankCounter:
-    ; Keeps a counter of how many VBlanks we've done.
+    ; Increment a counter of how many VBlanks we've done.
     inc $14
     lda $14
     cmp #$00
@@ -80,12 +81,13 @@ VBlankCounterDone:
     rts
 
 
+
 JoypadHandler:
     ; $4218: Joypad #1 status [JOY1L]
     ; Format: AXLR0000
     ; $4219: Joypad #1 status [JOY1H]
     ; Format: BYsSudlr (s=select, S=start, udlr = joypad)
-    ; Joypad #2 status is $421A [JOY2L] and $421B [JOY2H].
+    ; Joypad #2 status would be $421A [JOY2L] and $421B [JOY2H].
     jsr JoypadDebug  ; DEBUG
 
 ; TODO(mcmillen): read joypad from local memory instead of registers?
@@ -153,6 +155,7 @@ JoypadDone:
     rts  
 
 
+
 JoypadDebug:
     ; Load joypad registers into RAM for easier inspection.
     lda $4218
@@ -166,40 +169,33 @@ JoypadDebug:
     rts
 
 
-SetBackgroundColor:
-    ; $20 $21 $22 are R, G, B, as appropriate.
-    ; The color format is 15-bit: [0bbbbbgg][gggrrrrr]
-    ; We store the low-order byte first.
-    lda $20   ; RED
-    sta $00
-    lda $22   ; BLUE
-    asl
-    asl
-    sta $01
-    lda $21   ; GREEN.
-    ;  First store the high-order bits of green into $01.
-    lsr
-    lsr
-    lsr
-    ora $01
-    pha  ; push 1
-    ; Now store the low-order bits into $00.
-    lda $21
-    and #%00000111
-    asl
-    asl
-    asl
-    asl
-    asl
-    ora $00
-    pha  ; push 2
 
-    ; Now store the two values from the stack into the palette.
-    pla  ; pull 2
+SetBackgroundColor:
+    ; $20 $21 $22 are (R, G, B), each ranging from [0-31].
+    ; The palette color format is 15-bit: [0bbbbbgg][gggrrrrr]
+    
+    ; Compute and store the low-order byte.
+    lda $21  ; Green.
+    .rept 5
+        asl
+    .endr
+    ora $20  ; Red.
     sta $2122
-    pla  ; pull 1
+
+    ; Compute and store the high-order byte.
+    lda $22  ; Blue.
+    .rept 2
+        asl
+    .endr
+    sta $00
+    lda $21  ; Green.
+    .rept 3
+        lsr
+    .endr
+    ora $00
     sta $2122
     rts
+
 
 
 FillScratch:
@@ -213,4 +209,3 @@ FillScratchLoop:
     rts
 
 .ENDS
-
