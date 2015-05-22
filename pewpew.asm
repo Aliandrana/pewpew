@@ -1,6 +1,6 @@
 .INCLUDE "header.asm"
 .INCLUDE "InitSNES.asm"
-
+.INCLUDE "registers.asm"
 
 .BANK 0 SLOT 0
 .ORG 0
@@ -11,31 +11,29 @@
 ; 00-0F: scratch space for functions.
 ; 10-13: controller state.
 ; 14-17: 32-bit counter of vblanks.
-; 20-22: [rgb] color values to use for background color.
+; 20-22: RGB color values to use for background color, from [0-31].
 
 
 Start:
-    InitSNES            ; Initialize SNES.
+    InitSNES  ; Initialize SNES.
                       
     ; Turn on the screen. 
-    ; $2100: Screen display register [INIDISP]
-    ;
     ; Format: x000bbbb 
     ; x: 0 = screen on, 1 = screen off, bbbb: Brightness ($0-$F)
     lda #%00001111
-    sta $2100
+    sta INIDISP
 
     ; Enable NMI interrupt & joypad.
-    ; Register $4200: Counter enable [NMITIMEN]
     ; n-vh---j   n: NMI interrupt enable         v: vertical counter enable
     ;            h: horizontal counter enable    j: joypad enable
     lda #$81
-    sta $4200
+    sta NMITIMEN
 
     ; Store zeroes to the controller status registers.
-    ; TODO(mcmillen): is this needed? I think the system should do this.
-    stz $4218
-    stz $4219
+    ; TODO(mcmillen): is this needed? I think the system will overwrite these
+    ; automatically.
+    stz JOY1H
+    stz JOY1L
 
     ; Write something recognizable into our scratch space.
     jsr FillScratch
@@ -82,12 +80,11 @@ JoypadHandler:
     ; Format: AXLR0000
     ; $4219: Joypad #1 status [JOY1H]
     ; Format: BYsSudlr (s=select, S=start, udlr = joypad)
-    ; Joypad #2 status would be $421A [JOY2L] and $421B [JOY2H].
     jsr JoypadDebug  ; DEBUG
 
 ; TODO(mcmillen): read joypad from local memory instead of registers?
 JoypadUp:
-    lda $4219
+    lda JOY1H
     and #$08  ; Up
     cmp #$08
     bne JoypadDown  ; Button not pressed.
@@ -97,8 +94,8 @@ JoypadUp:
     inc $20
 
 JoypadDown:
-    lda $4219
-    and #$04  ; Down
+    lda JOY1H
+    and #$04
     cmp #$04
     bne JoypadLeft  ; Button not pressed.
     lda $20
@@ -107,7 +104,7 @@ JoypadDown:
     dec $20
 
 JoypadLeft:
-    lda $4219
+    lda JOY1H
     and #$02  ; Left
     cmp #$02
     bne JoypadRight  ; Button not pressed.
@@ -117,7 +114,7 @@ JoypadLeft:
     dec $22
 
 JoypadRight:
-    lda $4219
+    lda JOY1H
     and #$01
     cmp #$01  ; Right
     bne JoypadB  ; Button not pressed.
@@ -127,7 +124,7 @@ JoypadRight:
     inc $22
 
 JoypadB:
-    lda $4219
+    lda JOY1H
     and #$80  ; B
     cmp #$80
     bne JoypadY  ; Button not pressed.
@@ -137,7 +134,7 @@ JoypadB:
     inc $21
 
 JoypadY:
-    lda $4219
+    lda JOY1H
     and #$40  ; Y
     cmp #$40
     bne JoypadDone  ; Button not pressed.
@@ -153,13 +150,13 @@ JoypadDone:
 
 JoypadDebug:
     ; Load joypad registers into RAM for easier inspection.
-    lda $4218
+    lda JOY1L
     sta $10
-    lda $4219
+    lda JOY1H
     sta $11
-    lda $421A
+    lda JOY2L
     sta $12
-    lda $421B
+    lda JOY2H
     sta $13
     rts
 
@@ -175,7 +172,7 @@ SetBackgroundColor:
         asl
     .endr
     ora $20  ; Red.
-    sta $2122
+    sta CGDATA
 
     ; Compute the high-order byte and store it in CGDATA.
     lda $22  ; Blue.
@@ -188,12 +185,12 @@ SetBackgroundColor:
         lsr
     .endr
     ora $00
-    sta $2122
+    sta CGDATA
 
     ; Set the background color.
     ; $2121 is the color palette selection register [CGADD].
     ; Entry 0 corresponds to the SNES background color.
-    stz $2121
+    stz CGADD
     rts
 
 
