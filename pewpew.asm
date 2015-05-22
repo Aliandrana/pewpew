@@ -38,7 +38,7 @@ Start:
     sta $4200
 
     ; Store zeroes to the controller status registers.
-    ; TODO(mcmillen): is this needed?
+    ; TODO(mcmillen): is this needed? I think the system should do this.
     stz $4218
     stz $4219
 

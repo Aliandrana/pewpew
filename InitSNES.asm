@@ -1,11 +1,7 @@
 ;------------------------------------------------------------------------
-;-  Standard SNES initialization routine, by Neviksti
+;-  Standard SNES initialization routine, originally by Neviksti
 ;------------------------------------------------------------------------
 
-
-;----------------------------------------------------------------------------
-; InitSNES -- my "standard" initialization of SNES memory and registers
-;----------------------------------------------------------------------------
 .MACRO InitSNES
   sei                     ;disable interrupts
   clc                     ;switch to native mode
