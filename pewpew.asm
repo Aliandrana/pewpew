@@ -1,4 +1,4 @@
-.INCLUDE "header.inc"
+.INCLUDE "header.asm"
 .INCLUDE "InitSNES.asm"
 
 
