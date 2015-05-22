@@ -16,12 +16,7 @@
 
 Start:
     InitSNES            ; Initialize SNES.
-
-    ; Set the background color.
-    ; $2121 is the color palette selection register [CGADD].
-    ; Storing 0 because that's the SNES background color.
-    stz $2121
-                        
+                      
     ; Turn on the screen. 
     ; $2100: Screen display register [INIDISP]
     ;
@@ -148,7 +143,7 @@ JoypadY:
     bne JoypadDone  ; Button not pressed.
     lda $21
     cmp #0
-    beq JoypadDone
+    beq JoypadDone  ; Value saturated.
     dec $21
 
 JoypadDone:
@@ -174,7 +169,7 @@ SetBackgroundColor:
     ; $20 $21 $22 are (R, G, B), each ranging from [0-31].
     ; The palette color format is 15-bit: [0bbbbbgg][gggrrrrr]
     
-    ; Compute and store the low-order byte.
+    ; Compute and the low-order byte and store it in CGDATA.
     lda $21  ; Green.
     .rept 5
         asl
@@ -182,7 +177,7 @@ SetBackgroundColor:
     ora $20  ; Red.
     sta $2122
 
-    ; Compute and store the high-order byte.
+    ; Compute the high-order byte and store it in CGDATA.
     lda $22  ; Blue.
     .rept 2
         asl
@@ -194,6 +189,11 @@ SetBackgroundColor:
     .endr
     ora $00
     sta $2122
+
+    ; Set the background color.
+    ; $2121 is the color palette selection register [CGADD].
+    ; Entry 0 corresponds to the SNES background color.
+    stz $2121
     rts
 
 

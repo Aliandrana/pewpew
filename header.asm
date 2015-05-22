@@ -53,4 +53,6 @@ EmptyHandler:
 
 .ENDS
 
+; Fills unused areas with $00.
+; This is the opcode for BRK, which will halt the SNES if executed.
 .EMPTYFILL $00
