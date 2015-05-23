@@ -70,7 +70,9 @@ Start:
     ; Write something recognizable into our scratch space.
     jsr FillScratch
 
-    ; Start the background color as a dark blue.
+    ; Start the background color as a lime green.
+    lda #31
+    sta $23
     lda #16
     sta $24
 
@@ -97,20 +99,22 @@ LoadPaletteAndTileData:
 
     ; 16-bit X/Y registers. Used for DMA source address & transfer size, both of
     ; which want 16-bit values.
-    ; TODO(mcmillen): change back to 8-bit when we're done?
     rep #%00010000  
     ; 8-bit A/B registers. Used for DMA source bank & destination address.
     sep #%00100000
 
-    ; We only need one palette entry, so we just initialize it manually.
+    ; Initialize the palette memory in a loop.
     ; We could also do this with a DMA transfer (like we do with the tile data
-    ; below), but it seems overkill for just one entry :)
-    lda #34  ; Set the 34th palette entry.
+    ; below), but it seems overkill for just a few bytes. :)
+    ldx #0
+    lda #32  ; Palette entries for BG2 start at 32.
     sta CGADDR
-    lda.l PaletteData
+-    
+    lda.l PaletteData, x
     sta CGDATA
-    lda.l PaletteData + 1
-    sta CGDATA
+    inx
+    cpx #8  ; 8 bytes of palette data.
+    bne -
 
     ; DMA 0 source address & bank.
     ldx #TileData
@@ -118,7 +122,7 @@ LoadPaletteAndTileData:
     lda #:TileData
     sta DMA0SRCBANK
     ; DMA 0 transfer size.
-    ldy #(15 * 16 *2)  ; Also see the helpful "480 bytes" comment in tiles.asm.
+    ldy #320  ; See the helpful comment in face.asm.
     sty DMA0SIZE
     ; DMA 0 control register.
     ; Transfer type 001 = 2 addresses, LH.
@@ -140,7 +144,7 @@ LoadPaletteAndTileData:
     ; Set word address for accessing VRAM to $6000.
     ldx #$6000  ; BG 2 starts here.
     stx VMADDR
-    ldx #$000A  ; Stick one tile into BG2.
+    ldx #$0002  ; Stick one tile into BG2.
     stx VMDATA
 
     ; Set up the screen. 16x16 tiles for BG2, 8x8 tiles elsewhere, mode 0.
