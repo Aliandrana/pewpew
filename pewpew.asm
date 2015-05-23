@@ -1,5 +1,5 @@
 .INCLUDE "header.asm"
-.INCLUDE "InitSNES.asm"
+.INCLUDE "init.asm"
 .INCLUDE "registers.asm"
 
 
