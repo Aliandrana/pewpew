@@ -70,11 +70,17 @@ Start:
     ; Write something recognizable into our scratch space.
     jsr FillScratch
 
-    ; Start the background color as a lime green.
-    lda #31
-    sta $23
+    ; Start the background color as a sky blue.
     lda #16
+    sta $23
+    lda #31
     sta $24
+
+    ; Player's initial starting location.
+    lda #(256 / 4)
+    sta $20
+    lda #((224 - 8) / 2)
+    sta $21
 
 
 
@@ -110,19 +116,20 @@ LoadPaletteAndTileData:
     lda #32  ; Palette entries for BG2 start at 32.
     sta CGADDR
 -    
-    lda.l PaletteData, x
+    lda.l UntitledPalette, x
     sta CGDATA
     inx
     cpx #8  ; 8 bytes of palette data.
     bne -
 
     ; DMA 0 source address & bank.
-    ldx #TileData
+    ldx #UntitledData
     stx DMA0SRC
-    lda #:TileData
+    lda #:UntitledData
     sta DMA0SRCBANK
     ; DMA 0 transfer size.
-    ldy #320  ; See the helpful comment in face.asm.
+    ; See the helpful comment in tiles.asm to find the size of the tile data.
+    ldy #384  
     sty DMA0SIZE
     ; DMA 0 control register.
     ; Transfer type 001 = 2 addresses, LH.
@@ -144,7 +151,7 @@ LoadPaletteAndTileData:
     ; Set word address for accessing VRAM to $6000.
     ldx #$6000  ; BG 2 starts here.
     stx VMADDR
-    ldx #$0002  ; Stick one tile into BG2.
+    ldx #$0004  ; Stick one tile into BG2.
     stx VMDATA
 
     ; Set up the screen. 16x16 tiles for BG2, 8x8 tiles elsewhere, mode 0.
