@@ -12,7 +12,7 @@
 .SNESHEADER
   ID "SNES"
   
-  NAME "PEW PEW              "  ; Program title. Should be 21 bytes long;
+  NAME "PEW! PEW!            "  ; Program title. Should be 21 bytes long;
   ;    "123456789012345678901"  ; use spaces for unused bytes of the name.
 
   SLOWROM
