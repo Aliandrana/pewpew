@@ -83,6 +83,18 @@ MainLoop:
 
 
 LoadPaletteAndTileData:
+    ; For more details on DMA, see:
+    ; http://wiki.superfamicom.org/snes/show/Grog%27s+Guide+to+DMA+and+HDMA+on+the+SNES
+    ; http://wiki.superfamicom.org/snes/show/Making+a+Small+Game+-+Tic-Tac-Toe
+    ;
+    ; A lot of the graphics-related registers are explained in Qwertie's doc:
+    ; http://emu-docs.org/Super%20NES/General/snesdoc.html
+    ; ... but be careful, because there are some errors in this doc.
+    ;
+    ; bazz's tutorial (available from http://wiki.superfamicom.org/snes/) is
+    ; quite helpful with palette / sprites / DMA, especially starting at
+    ; http://wiki.superfamicom.org/snes/show/Working+with+VRAM+-+Loading+the+Palette
+
     ; 16-bit X/Y registers. Used for DMA source address & transfer size, both of
     ; which want 16-bit values.
     ; TODO(mcmillen): change back to 8-bit when we're done?

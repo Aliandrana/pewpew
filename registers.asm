@@ -15,6 +15,9 @@
 ; I've also heavily borrowed from Yoshi's descriptions of what these registers
 ; do, though in many cases I've clarified / simplified the descriptions based
 ; on my own understanding, or simply reformatted them a bit.
+;
+; Here is a link to an online version of Yoshi's doc (v. 2.30):
+; http://patpend.net/technical/snes/snes.txt
 
 ; $2100: Screen display initialization [INIDISP]
 ; Format: x000bbbb 
@@ -155,20 +158,55 @@
 ;                011 = 2 addresses write twice: LLHH
 ;                100 = 4 addresses: LHLH
 .define DMA0CTRL $4300
+.define DMA1CTRL $4310
+.define DMA2CTRL $4320
+.define DMA3CTRL $4330
+.define DMA4CTRL $4340
+.define DMA5CTRL $4350
+.define DMA6CTRL $4360
+.define DMA7CTRL $4370
 
 ; $43x1: DMA destination for channel x. [BBADX]
 ; The upper byte is assumed to be $21, so the possible destinations are
 ; $2100-$21FF.
 .define DMA0DST $4301
+.define DMA1DST $4311
+.define DMA2DST $4321
+.define DMA3DST $4331
+.define DMA4DST $4341
+.define DMA5DST $4351
+.define DMA6DST $4361
+.define DMA7DST $4371
 
 ; $43x2-$43x3: DMA source address for channel x. 2 bytes. [AITXL/AITXH]
 .define DMA0SRC $4302
+.define DMA1SRC $4312
+.define DMA2SRC $4322
+.define DMA3SRC $4332
+.define DMA4SRC $4342
+.define DMA5SRC $4352
+.define DMA6SRC $4362
+.define DMA7SRC $4372
 
 ; $43x4: DMA source bank for channel x [AIBX]
 .define DMA0SRCBANK $4304
+.define DMA1SRCBANK $4314
+.define DMA2SRCBANK $4324
+.define DMA3SRCBANK $4334
+.define DMA4SRCBANK $4344
+.define DMA5SRCBANK $4354
+.define DMA6SRCBANK $4364
+.define DMA7SRCBANK $4374
 
 ; $43x5: DMA transfer size & HDMA address. 2 bytes. [DASXL/DASXH]
 ; When using DMA, $43x5 defines the # of bytes to be transferred via DMA
 ; itself. When using HDMA, $43x5 defines the data address ($43x5 = low byte,
 ; $43x6 = hi byte).
 .define DMA0SIZE $4305
+.define DMA1SIZE $4315
+.define DMA2SIZE $4325
+.define DMA3SIZE $4335
+.define DMA4SIZE $4345
+.define DMA5SIZE $4355
+.define DMA6SIZE $4365
+.define DMA7SIZE $4375
