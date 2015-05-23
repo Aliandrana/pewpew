@@ -116,16 +116,16 @@ LoadPaletteAndTileData:
     lda #32  ; Palette entries for BG2 start at 32.
     sta CGADDR
 -    
-    lda.l UntitledPalette, x
+    lda.l TilePalette, x
     sta CGDATA
     inx
     cpx #8  ; 8 bytes of palette data.
     bne -
 
     ; DMA 0 source address & bank.
-    ldx #UntitledData
+    ldx #TileData
     stx DMA0SRC
-    lda #:UntitledData
+    lda #:TileData
     sta DMA0SRCBANK
     ; DMA 0 transfer size.
     ; See the helpful comment in tiles.asm to find the size of the tile data.
