@@ -54,9 +54,9 @@ Start:
     jsr LoadPaletteAndTileData
     jsr InitializeSpriteTables
 
-    ; Set screen mode: 16x16 tiles for BG2, 8x8 tiles elsewhere, mode 0.
-    lda #%00100000
-    sta BGMODE
+    ; Set screen mode: 16x16 tiles for backgrounds, mode 0.
+    lda #%11110000
+    sta SCREENMODE
 
     ; Set sprite size to 16x16 (small) and 32x32 (large).
     lda #%01100000
@@ -87,10 +87,8 @@ Start:
     ; Write something recognizable into our scratch space.
     jsr FillScratch
 
-    ; Start the background color as a sky blue.
-    lda #16
-    sta $23
-    lda #31
+    ; Start the background color as a dark blue.
+    lda #4
     sta $24
 
     ; Player's initial starting location.
@@ -202,6 +200,13 @@ LoadPaletteAndTileData:
     lda #%00000001
     sta DMAENABLE
 
+    ; Tell the system that the BG2 tilemap starts at $4000.
+    lda #%00100000
+    sta BG2TILEMAP
+    ; ... and that the background tile data for BG1 & BG2 starts at $2000.
+    lda #%00010001
+    sta BG12NBA
+
     ; Set up the BG2 tilemap.
     ; VRAM write mode: increments the address every time we write a word.
     lda #%10000000
@@ -210,20 +215,37 @@ LoadPaletteAndTileData:
     ldx #$2000  ; BG 2 tilemap starts here. (Byte address $4000.)
     stx VMADDR
     ; Now write entries into the tile map.
+    ; We have only a couple tiles, but we set the invert horizontal/vertical
+    ; bits so that we get more variation.  We also do 7 tiles per loop -- since
+    ; the tile map is 32 entries wide, this means that successive rows end up
+    ; looking different.
     ldy #0
 -
-    ldx #$0002  ; Write one tile into the map.
+    ldx #$0002
     stx VMDATA
     iny
-    cpy #1024  ; The tile map is 32x32 (1024 entries).
+    ldx #$0004
+    stx VMDATA
+    iny
+    ldx #$4002
+    stx VMDATA
+    iny
+    ldx #$8002
+    stx VMDATA
+    iny
+    ldx #$8004
+    stx VMDATA
+    iny
+    ldx #$A002
+    stx VMDATA
+    iny
+    ldx #$A004
+    stx VMDATA
+    iny
+    ; The tile map is 32x32 (1024 entries).
+    ; This is the next multiple of 7 above that.
+    cpy #1029
     bne -
-
-    ; The BG2 tilemap starts at $4000.
-    lda #%00100000
-    sta BG2TILEMAP
-    ; Background tile data for BG1 & BG2 starts at $2000.
-    lda #%00010001
-    sta BG12NBA
 
     rts
 
@@ -475,11 +497,18 @@ UpdateGraphics:
     and #%11111110
     sta $0300
 
-    ; Make the background scroll.
+    ; Make the background scroll. Horizontal over time; vertical depending on
+    ; player's y-coordinate.
     lda $14
     sta BG2HOFS
     lda $15
     sta BG2HOFS
+    lda $21
+    .rept 3
+        lsr
+    .endr
+    sta BG2VOFS
+    stz BG2VOFS
 
     rts
 

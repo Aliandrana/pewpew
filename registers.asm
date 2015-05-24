@@ -48,7 +48,7 @@
 ;             d: BG1 tile size (0=8x8, 1=16x16).
 ;             e: Highest priority for BG3 in MODE 1.
 ;             f: MODE definition.
-.define BGMODE $2105
+.define SCREENMODE $2105
 
 ; $2107-210A: BG1-4 tilemap registers [BGxSC]
 ; xxxxxxab    x: Base address (in VRAM, shifted left 11 bits).
