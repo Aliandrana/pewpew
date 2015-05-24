@@ -36,19 +36,32 @@ sep #%00100000  ; 8-bit A
 
 
 ; Memory layout:
-; 00-0F: scratch space for functions.
-; 10-11: controller state of joypad #1.
-; 12-13: controller state of joypad #2.
-; 14-17: 32-bit counter of vblanks.
-; 20-21: (x, y) coordinates of player.
-; 22-24: RGB color values to use for background color, from [0-31].
+; 0000-000F: scratch space for functions.
+; 0010-0011: controller state of joypad #1.
+; 0012-0013: controller state of joypad #2.
+; 0014-0017: 32-bit counter of vblanks.
+; 0020-0021: (x, y) coordinates of player.
+; 0022-0024: RGB color values to use for background color, from [0-31].
+;
+; Sprite table buffers -- copied each frame to OAM during VBlank, using DMA.
+; 0100-02FF: table 1 (4 bytes each: x/y coord, tile #, flip/priority/palette)
+; 0300-031F: table 2 (2 bits each: high x-coord bit, size)
 
 
 Start:
     InitializeSNES
 
     jsr LoadPaletteAndTileData
-                    
+    jsr InitializeSpriteTables
+
+    ; Set sprite size to 16x16 (small) and 32x32 (large).
+    lda #%01100000
+    sta OAMSIZE
+
+    ; Main screen: enable sprites.
+    lda #%00010000
+    sta MSENABLE
+
     ; Turn on the screen. 
     ; Format: x000bbbb 
     ; x: 0 = screen on, 1 = screen off, bbbb: Brightness ($0-$F)
@@ -105,7 +118,7 @@ LoadPaletteAndTileData:
 
     ; 16-bit X/Y registers. Used for DMA source address & transfer size, both of
     ; which want 16-bit values.
-    rep #%00010000  
+    rep #%00010000
     ; 8-bit A/B registers. Used for DMA source bank & destination address.
     sep #%00100000
 
@@ -113,24 +126,24 @@ LoadPaletteAndTileData:
     ; We could also do this with a DMA transfer (like we do with the tile data
     ; below), but it seems overkill for just a few bytes. :)
     ldx #0
-    lda #32  ; Palette entries for BG2 start at 32.
+    lda #128  ; Palette entries for sprites start at 128.
     sta CGADDR
 -    
-    lda.l TilePalette, x
+    lda.l SpritePalette, X
     sta CGDATA
     inx
-    cpx #8  ; 8 bytes of palette data.
+    cpx #32  ; 32 bytes of palette data.
     bne -
 
     ; DMA 0 source address & bank.
-    ldx #TileData
+    ldx #SpriteData
     stx DMA0SRC
-    lda #:TileData
+    lda #:SpriteData
     sta DMA0SRCBANK
     ; DMA 0 transfer size.
-    ; See the helpful comment in tiles.asm to find the size of the tile data.
-    ldy #384  
-    sty DMA0SIZE
+    ; See the helpful comment in sprites.asm to find the size of the tile data.
+    ldx #576
+    stx DMA0SIZE
     ; DMA 0 control register.
     ; Transfer type 001 = 2 addresses, LH.
     lda #%00000001
@@ -139,8 +152,8 @@ LoadPaletteAndTileData:
     lda #$18  ; Upper-byte is assumed to be $21, so this is $2118 & $2119.
     sta DMA0DST
     ; $2116 sets the word address for accessing VRAM.
-    ldy #$0000
-    sty VMADDR
+    ldx #$0000
+    stx VMADDR
     ; Enable DMA channel 0.
     lda #%00000001
     sta DMAENABLE
@@ -163,10 +176,47 @@ LoadPaletteAndTileData:
     sta BG2SC
     stz BG12NBA
 
-    ; Main screen: enable BG2.
-    lda #%00000010
-    sta MSENABLE
+    rts
 
+
+
+InitializeSpriteTables:
+    ; This page is a good reference on SNES sprite formats:
+    ; http://wiki.superfamicom.org/snes/show/SNES+Sprites
+    ; It uses the same approach we're using, in which we keep a buffer of the
+    ; sprite tables in RAM, and DMA the sprite tables to the system's OAM
+    ; during VBlank.
+    rep #%00110000  ; 16-bit A/X/Y.
+
+    ldx #$0000
+    ; Fill sprite table 1.  4 bytes per sprite, laid out as follows:
+    ; Byte 1:    xxxxxxxx    x: X coordinate
+    ; Byte 2:    yyyyyyyy    y: Y coordinate
+    ; Byte 3:    cccccccc    c: Starting tile #
+    ; Byte 4:    vhoopppc    v: vertical flip h: horizontal flip  o: priority bits
+    ;                        p: palette #
+    lda #$01
+-
+    sta $0100, X  ; We keep our sprite table at $0100 and DMA it to OAM later.
+    inx
+    inx
+    inx
+    inx
+    cpx #$0200
+    bne -
+
+    ; Fill sprite table 2.  2 bits per sprite, like so:
+    ; bits 0,2,4,6 - Enable or disable the X coordinate's 9th bit.
+    ; bits 1,3,5,7 - Toggle Sprite size: 0 - small size   1 - large size
+    lda #%0101010101010101
+-
+    sta $0100, X
+    inx
+    inx
+    cpx #$0220
+    bne -
+
+    sep #%00100000  ; 8-bit A.
     rts
 
 
@@ -176,6 +226,7 @@ VBlankHandler:
     jsr JoypadHandler
     jsr SetBackgroundColor
     jsr SetPlayerPosition
+    jsr DMASpriteTables
     rti
 
 
@@ -361,38 +412,52 @@ SetBackgroundColor:
 
 
 SetPlayerPosition:
-    ; Make sure the high byte of A is zeroed out.
-    lda #$00
-    xba
-    ; Get player x and convert it to a scroll offset.
+    ; Copy player coords into sprite table.
     lda $0020
-    ConvertXCoordinate
-    sta BG2HOFS
-    xba
-    sta BG2HOFS
-
-    ; Make sure the high byte of A is zeroed out.
-    lda #$00
-    xba
-    ; Get player y and convert it to a scroll offset.
+    sta $0100
     lda $0021
-    ConvertYCoordinate
-    sta BG2VOFS
-    xba
-    sta BG2VOFS
+    sta $0101
+    ; Clear x-MSB so that the sprite is displayed.
+    lda $0300
+    and #%11111110
+    sta $0300
+    rts
+
+
+
+DMASpriteTables:
+    rep #%00010000  ; 16-bit X/Y.
+    sep #%00100000  ; 8-bit A.
+    ; Store at the base OAM address.
+    ldx #$0000
+    stx OAMADDR
+    ; Default DMA control; destination $2104 (OAM data register).
+    stz DMA0CTRL
+    lda #$04
+    sta DMA0DST
+    ; Our sprites start at $0100 in bank 0 and are #$220 bytes long.
+    ldx #$0100
+    stx DMA0SRC
+    stz DMA0SRCBANK
+    ldx #$0220
+    stx DMA0SIZE
+    ; Kick off the DMA transfer.
+    lda #%00000001
+    sta DMAENABLE
     rts
 
 
 
 FillScratch:
-    lda #$42  ; B
+    lda #$42  ; ASCII "B"
     ldx #0
-FillScratchLoop:
-    sta $00,X
+-
+    sta $00, X
     inx
     cpx #$10
-    bne FillScratchLoop
+    bne -
     rts
+
 
 .ENDS
 
@@ -400,6 +465,6 @@ FillScratchLoop:
 
 .BANK 1 SLOT 0
 .ORG 0
-.SECTION "TileData"
-.INCLUDE "tiles.asm"
+.SECTION "SpriteData"
+.INCLUDE "sprites.asm"
 .ENDS

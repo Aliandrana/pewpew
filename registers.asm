@@ -24,6 +24,23 @@
 ; x: 0 = screen on, 1 = screen off, bbbb: Brightness ($0-$F)
 .define INIDISP $2100
 
+; $2101: OAM size [OBSEL]
+; sssnnbbb    s: 000 =  8x8  or 16x16.
+;                001 =  8x8  or 32x32.
+;                010 =  8x8  or 64x64.
+;                011 = 16x16 or 32x32.
+;                100 = 16x16 or 64x64.
+;                101 = 32x32 or 64x64.
+;             n: Name selection (upper 4k word addr).
+;             b: Base selection (8k word seg. addr).
+.define OAMSIZE $2101
+
+; $2102-$2103: OAM address register [OAMADDL/OAMADDH]
+; aaaaaaaa r000000m    a: OAM address.
+;                      r: OAM priority rotation.
+;                      m: OAM address MSB.
+.define OAMADDR $2102
+
 ; $2105: Screen mode register [BGMODE]
 ; abcdefff    a: BG4 tile size (0=8x8, 1=16x16).
 ;             b: BG3 tile size (0=8x8, 1=16x16).
