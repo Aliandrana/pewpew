@@ -3,32 +3,6 @@
 .INCLUDE "registers.asm"
 
 
-; The JSR and RTS instructions add a total of 12 cycles of overhead.  For
-; short, commonly-used functions, it makes sense to declare them as macros,
-; which get inlined by the assembler at the point of use.  This saves on
-; CPU cycles, at the cost of code size.
-
-
-.MACRO ConvertXCoordinate
-; Data in: world x-coordinate, in A register.
-; Data out: SNES scroll data, in C (the 16-bit A register).
-rep #%00100000  ; 16-bit A
-eor #$FFFF  ; Flip bits
-ina
-sep #%00100000  ; 8-bit A
-.ENDM
-
-
-
-.MACRO ConvertYCoordinate
-; Data in: world y-coordinate, in A register.
-; Data out: SNES scroll data, in C (the 16-bit A register).
-rep #%00100000  ; 16-bit A
-eor #$FFFF  ; Flip bits
-sep #%00100000  ; 8-bit A
-.ENDM
-
-
 
 .BANK 0 SLOT 0
 .ORG 0
@@ -54,16 +28,16 @@ Start:
     jsr LoadPaletteAndTileData
     jsr InitializeSpriteTables
 
-    ; Set screen mode: 16x16 tiles for backgrounds, mode 0.
-    lda #%11110000
+    ; Set screen mode: 16x16 tiles for backgrounds, mode 1.
+    lda #%11000001
     sta SCREENMODE
 
     ; Set sprite size to 16x16 (small) and 32x32 (large).
     lda #%01100000
     sta OAMSIZE
 
-    ; Main screen: enable sprites & BG2.
-    lda #%00010010
+    ; Main screen: enable sprites & BG3.
+    lda #%00010100
     sta MSENABLE
 
     ; Turn on the screen. 
@@ -88,7 +62,7 @@ Start:
     jsr FillScratch
 
     ; Start the background color as a dark blue.
-    lda #4
+    lda #8
     sta $24
 
     ; Player's initial starting location.
@@ -140,9 +114,11 @@ LoadPaletteAndTileData:
     cpx #32  ; 32 bytes of palette data.
     bne -
 
-    ; Now, BG2 palette data:
+    ; Now, BG3 palette data.
+    ; Palette entries for BG3 start at 0.
+    ; TODO(mcmillen): BG2 started at 32, but maybe that's only in mode 0?
     ldx #0
-    lda #32  ; Palette entries for BG2 start at 32.
+    lda #0
     sta CGADDR
 -
     lda.l TilePalette, X
@@ -163,7 +139,7 @@ LoadPaletteAndTileData:
     sta DMA0SRCBANK
     ; DMA 0 transfer size.
     ; See the helpful comment in sprites.asm to find the size of the tile data.
-    ldx #576
+    ldx #640
     stx DMA0SIZE
     ; DMA 0 control register.
     ; Transfer type 001 = 2 addresses, LH.
@@ -200,19 +176,19 @@ LoadPaletteAndTileData:
     lda #%00000001
     sta DMAENABLE
 
-    ; Tell the system that the BG2 tilemap starts at $4000.
+    ; Tell the system that the BG3 tilemap starts at $4000.
     lda #%00100000
-    sta BG2TILEMAP
-    ; ... and that the background tile data for BG1 & BG2 starts at $2000.
-    lda #%00010001
-    sta BG12NBA
+    sta BG3TILEMAP
+    ; ... and that the background tile data for BG3 starts at $2000.
+    lda #%00000001
+    sta BG34NBA
 
-    ; Set up the BG2 tilemap.
+    ; Set up the BG3 tilemap.
     ; VRAM write mode: increments the address every time we write a word.
     lda #%10000000
     sta VMAIN
     ; Set word address for accessing VRAM.
-    ldx #$2000  ; BG 2 tilemap starts here. (Byte address $4000.)
+    ldx #$2000  ; BG 3 tilemap starts here. (Byte address $4000.)
     stx VMADDR
     ; Now write entries into the tile map.
     ; We have only a couple tiles, but we set the invert horizontal/vertical
@@ -221,30 +197,51 @@ LoadPaletteAndTileData:
     ; looking different.
     ldy #0
 -
+    ldx #$0000
+    stx VMDATA
+    iny
+    ldx #$0000
+    stx VMDATA
+    iny
+    ldx #$0000
+    stx VMDATA
+    iny
+    ldx #$0000
+    stx VMDATA
+    iny
     ldx #$0002
     stx VMDATA
     iny
-    ldx #$0004
-    stx VMDATA
-    iny
-    ldx #$4002
-    stx VMDATA
-    iny
-    ldx #$8002
+    ldx #$0000
     stx VMDATA
     iny
     ldx #$8004
     stx VMDATA
     iny
-    ldx #$A002
+    ldx #$0000
+    stx VMDATA
+    iny
+    ldx #$0000
+    stx VMDATA
+    iny
+    ldx #$0000
+    stx VMDATA
+    iny
+    ldx #$4002
+    stx VMDATA
+    iny
+    ldx #$0000
+    stx VMDATA
+    iny
+    ldx #$0000
     stx VMDATA
     iny
     ldx #$A004
     stx VMDATA
     iny
     ; The tile map is 32x32 (1024 entries).
-    ; This is the next multiple of 7 above that.
-    cpy #1029
+    ; This is the next multiple of 14 above that.
+    cpy #(74 * 14)
     bne -
 
     rts
@@ -489,6 +486,11 @@ UpdateGraphics:
     sta $0100
     lda $0021
     sta $0101
+    ; Choose which sprite based on frame count.
+    lda $14
+    and #%00000100
+    lsr
+    sta $0102
     ; Set priority bits so that the sprite is drawn in front.
     lda #%00110000
     sta $0103
@@ -500,15 +502,15 @@ UpdateGraphics:
     ; Make the background scroll. Horizontal over time; vertical depending on
     ; player's y-coordinate.
     lda $14
-    sta BG2HOFS
+    sta BG3HOFS
     lda $15
-    sta BG2HOFS
+    sta BG3HOFS
     lda $21
     .rept 3
         lsr
     .endr
-    sta BG2VOFS
-    stz BG2VOFS
+    sta BG3VOFS
+    stz BG3VOFS
 
     rts
 
