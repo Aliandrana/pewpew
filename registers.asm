@@ -50,13 +50,13 @@
 ;             f: MODE definition.
 .define BGMODE $2105
 
-; $2107-210A: BG1-4 VRAM location registers [BGxSC]
-; xxxxxxab    x: Base address
-;            ab: SC size     
-.define BG1SC $2107
-.define BG2SC $2108
-.define BG3SC $2109
-.define BG4SC $210A
+; $2107-210A: BG1-4 tilemap registers [BGxSC]
+; xxxxxxab    x: Base address (in VRAM, shifted left 11 bits).
+;            ab: SC size (00=32x32 01=64x32 10=32x64 11=64x64)
+.define BG1TILEMAP $2107
+.define BG2TILEMAP $2108
+.define BG3TILEMAP $2109
+.define BG4TILEMAP $210A
 
 ; $210B: BG1 & BG2 VRAM location register [BG12NBA]
 ; $210C: BG3 & BG4 VRAM location register [BG34NBA]
@@ -99,6 +99,7 @@
 .define VMAIN $2115
 
 ; $2116-$2117: Video port address. 2 bytes. [VMADDL/VMADDH]
+; Sets the initial address of a VRAM upload or download.
 .define VMADDR $2116
 
 ; $2118-$2119: Video port data. 2 bytes. [VMDATAL/VMDATAH]

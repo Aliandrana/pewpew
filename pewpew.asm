@@ -54,12 +54,16 @@ Start:
     jsr LoadPaletteAndTileData
     jsr InitializeSpriteTables
 
+    ; Set screen mode: 16x16 tiles for BG2, 8x8 tiles elsewhere, mode 0.
+    lda #%00100000
+    sta BGMODE
+
     ; Set sprite size to 16x16 (small) and 32x32 (large).
     lda #%01100000
     sta OAMSIZE
 
-    ; Main screen: enable sprites.
-    lda #%00010000
+    ; Main screen: enable sprites & BG2.
+    lda #%00010010
     sta MSENABLE
 
     ; Turn on the screen. 
@@ -125,6 +129,9 @@ LoadPaletteAndTileData:
     ; Initialize the palette memory in a loop.
     ; We could also do this with a DMA transfer (like we do with the tile data
     ; below), but it seems overkill for just a few bytes. :)
+    ; TODO(mcmillen): do it with a DMA transfer.
+
+    ; First, sprite palette data:
     ldx #0
     lda #128  ; Palette entries for sprites start at 128.
     sta CGADDR
@@ -135,6 +142,22 @@ LoadPaletteAndTileData:
     cpx #32  ; 32 bytes of palette data.
     bne -
 
+    ; Now, BG2 palette data:
+    ldx #0
+    lda #32  ; Palette entries for BG2 start at 32.
+    sta CGADDR
+-
+    lda.l TilePalette, X
+    sta CGDATA
+    inx
+    cpx #8  ; 8 bytes of palette data.
+    bne -
+
+    ; TODO(mcmillen): make the "DMA stuff into VRAM" a macro or function.
+    ; Set VMADDR to where we want the DMA to start.  We'll store sprite data
+    ; at the beginning of VRAM.
+    ldx #$0000
+    stx VMADDR
     ; DMA 0 source address & bank.
     ldx #SpriteData
     stx DMA0SRC
@@ -149,32 +172,58 @@ LoadPaletteAndTileData:
     lda #%00000001
     sta DMA0CTRL
     ; DMA 0 destination.
-    lda #$18  ; Upper-byte is assumed to be $21, so this is $2118 & $2119.
+    lda #$18  ; The upper byte is assumed to be $21, so this is $2118 & $2119.
     sta DMA0DST
-    ; $2116 sets the word address for accessing VRAM.
-    ldx #$0000
-    stx VMADDR
     ; Enable DMA channel 0.
     lda #%00000001
     sta DMAENABLE
 
-    ; VRAM writing mode. Increments the address every time we write to $2119.
+    ; Store background tile data at byte $2000 of VRAM.
+    ; (VMADDR is a word address, so multiply by 2 to get the byte address.)
+    ldx #$1000
+    stx VMADDR
+    ; DMA 0 source address & bank.
+    ldx #TileData
+    stx DMA0SRC
+    lda #:TileData
+    sta DMA0SRCBANK
+    ; DMA 0 transfer size.
+    ; See the helpful comment in tiles.asm to find the size of the tile data.
+    ldx #384
+    stx DMA0SIZE
+    ; DMA 0 control register.
+    ; Transfer type 001 = 2 addresses, LH.
+    lda #%00000001
+    sta DMA0CTRL
+    ; DMA 0 destination.
+    lda #$18  ; The upper byte is assumed to be $21, so this is $2118 & $2119.
+    sta DMA0DST
+    ; Enable DMA channel 0.
+    lda #%00000001
+    sta DMAENABLE
+
+    ; Set up the BG2 tilemap.
+    ; VRAM write mode: increments the address every time we write a word.
     lda #%10000000
     sta VMAIN
-    ; Set word address for accessing VRAM to $6000.
-    ldx #$6000  ; BG 2 starts here.
+    ; Set word address for accessing VRAM.
+    ldx #$2000  ; BG 2 tilemap starts here. (Byte address $4000.)
     stx VMADDR
-    ldx #$0004  ; Stick one tile into BG2.
+    ; Now write entries into the tile map.
+    ldy #0
+-
+    ldx #$0002  ; Write one tile into the map.
     stx VMDATA
+    iny
+    cpy #1024  ; The tile map is 32x32 (1024 entries).
+    bne -
 
-    ; Set up the screen. 16x16 tiles for BG2, 8x8 tiles elsewhere, mode 0.
+    ; The BG2 tilemap starts at $4000.
     lda #%00100000
-    sta BGMODE
-    ; $2108 is the BG2 VRAM location register.
-    ; This tells it that the BG2 data starts at $6000.
-    lda #%01100000
-    sta BG2SC
-    stz BG12NBA
+    sta BG2TILEMAP
+    ; Background tile data for BG1 & BG2 starts at $2000.
+    lda #%00010001
+    sta BG12NBA
 
     rts
 
@@ -206,8 +255,9 @@ InitializeSpriteTables:
     bne -
 
     ; Fill sprite table 2.  2 bits per sprite, like so:
-    ; bits 0,2,4,6 - Enable or disable the X coordinate's 9th bit.
+    ; bits 0,2,4,6 - High bit of the sprite's x-coordinate.
     ; bits 1,3,5,7 - Toggle Sprite size: 0 - small size   1 - large size
+    ; Setting all the high bits keeps the sprites offscreen.
     lda #%0101010101010101
 -
     sta $0100, X
@@ -225,7 +275,7 @@ VBlankHandler:
     jsr VBlankCounter  ; DEBUG
     jsr JoypadHandler
     jsr SetBackgroundColor
-    jsr SetPlayerPosition
+    jsr UpdateGraphics
     jsr DMASpriteTables
     rti
 
@@ -411,16 +461,26 @@ SetBackgroundColor:
 
 
 
-SetPlayerPosition:
+UpdateGraphics:
     ; Copy player coords into sprite table.
     lda $0020
     sta $0100
     lda $0021
     sta $0101
+    ; Set priority bits so that the sprite is drawn in front.
+    lda #%00110000
+    sta $0103
     ; Clear x-MSB so that the sprite is displayed.
     lda $0300
     and #%11111110
     sta $0300
+
+    ; Make the background scroll.
+    lda $14
+    sta BG2HOFS
+    lda $15
+    sta BG2HOFS
+
     rts
 
 
@@ -467,4 +527,12 @@ FillScratch:
 .ORG 0
 .SECTION "SpriteData"
 .INCLUDE "sprites.asm"
+.ENDS
+
+
+
+.BANK 2 SLOT 0
+.ORG 0
+.SECTION "TileData"
+.INCLUDE "tiles.asm"
 .ENDS
