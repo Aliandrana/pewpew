@@ -86,7 +86,7 @@ Start:
     ; Player's initial starting location.
     lda #(256 / 4)
     sta $20
-    lda #((224 - 8) / 2)
+    lda #((224 - 16) / 2)
     sta $21
 
 
@@ -155,9 +155,8 @@ LoadPaletteAndTileData:
     stx DMA0SRC
     lda #:SpriteData
     sta DMA0SRCBANK
-    ; DMA 0 transfer size.
-    ; See the helpful comment in sprites.asm to find the size of the tile data.
-    ldx #640
+    ; DMA 0 transfer size.  Equal to the size of sprites32.pic.
+    ldx #2048
     stx DMA0SIZE
     ; DMA 0 control register.
     ; Transfer type 001 = 2 addresses, LH.
@@ -179,9 +178,8 @@ LoadPaletteAndTileData:
     stx DMA0SRC
     lda #:TileData
     sta DMA0SRCBANK
-    ; DMA 0 transfer size.
-    ; See the helpful comment in tiles.asm to find the size of the tile data.
-    ldx #384
+    ; DMA 0 transfer size.  Equal to the size of tiles.pic.
+    ldx #512
     stx DMA0SIZE
     ; DMA 0 control register.
     ; Transfer type 001 = 2 addresses, LH.
@@ -327,7 +325,7 @@ JoypadDown:
     cmp #$04
     bne JoypadLeft  ; Button not pressed.
     lda $21
-    cmp #(224 - 16)
+    cmp #(224 - 32)
     beq JoypadLeft  ; Value saturated.
     inc $21
     inc $21
@@ -349,7 +347,7 @@ JoypadRight:
     cmp #$01  ; Right
     bne JoypadB  ; Button not pressed.
     lda $20
-    cmp #(256 - 16)
+    cmp #(256 - 32)
     beq JoypadB  ; Value saturated.
     inc $20
     inc $20
@@ -474,16 +472,13 @@ UpdateGraphics:
     lda $0021
     sta $0101
     ; Choose which sprite based on frame count.
-    lda $14
-    and #%00000100
-    lsr
-    sta $0102
     ; Set priority bits so that the sprite is drawn in front.
     lda #%00110000
     sta $0103
     ; Clear x-MSB so that the sprite is displayed.
     lda $0300
     and #%11111110
+    ora #%00000010  ; ... and make it the large size. (32x32)
     sta $0300
 
     ; Make the background scroll. Horizontal over time; vertical depending on
@@ -545,8 +540,17 @@ FillScratch:
 .BANK 1 SLOT 0
 .ORG 0
 .SECTION "GraphicsData"
-.INCLUDE "sprites.asm"
-.INCLUDE "tiles.asm"
+
+SpriteData:
+    .INCBIN "sprites32.pic"
+SpritePalette:
+    .INCBIN "sprites32.clr"
+
+TileData:
+    .INCBIN "tiles.pic"
+TilePalette:
+    .INCBIN "tiles.clr"
+
 .ENDS
 
 

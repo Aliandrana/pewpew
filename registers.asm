@@ -18,6 +18,8 @@
 ;
 ; Here is a link to an online version of Yoshi's doc (v. 2.30):
 ; http://patpend.net/technical/snes/snes.txt
+; Anomie's register doc is more up-to-date and might have better info:
+; http://www.dforce3000.de/pub/doc/anomie_regs.txt
 
 ; $2100: Screen display initialization [INIDISP]
 ; Format: x000bbbb 
