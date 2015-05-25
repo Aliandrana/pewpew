@@ -26,10 +26,10 @@
 .define backgroundGreen $18
 .define backgroundBlue $19
 .define randomBytePtr $1A
-.define playerX $40
-.define playerY $41
-.define shotCooldown $42
-.define shotData $50
+.define playerX $20
+.define playerY $21
+.define shotCooldown $22
+.define shotData $30
 
 ; TODO(mcmillen): verify that we can relocate these without messing things up.
 .define spriteTableStart $100
@@ -315,7 +315,7 @@ JoypadDebug:
 
 
 JoypadHandler:
-
+; TODO(mcmillen): handle joystick using 16-bit loads?
 JoypadUp:
     lda JOY1H
     and #$08  ; Up
