@@ -4,6 +4,23 @@
 
 
 
+; Assumes 16-bit X & 8-bit A.
+; Stores result to A.
+; Modifies X.
+; Updates $0018-$0019 to point at the next available random byte.
+.MACRO GetRandomByte
+    ldx $18
+    lda $028000, X  ; $028000: beginning of ROM bank 2.
+    inx
+    cpx #$8000  ; This is the size of the entire ROM bank.
+    bne +
+    ldx #0
++
+    stx $18
+.ENDM
+
+
+
 .BANK 0 SLOT 0
 .ORG 0
 .SECTION "MainCode"
@@ -14,6 +31,7 @@
 ; 0010-0011: controller state of joypad #1.
 ; 0012-0013: controller state of joypad #2.
 ; 0014-0017: 32-bit counter of vblanks.
+; 0018-0019: 16-bit pointer to next random byte.
 ; 0020-0021: (x, y) coordinates of player.
 ; 0022-0024: RGB color values to use for background color, from [0-31].
 ;
@@ -191,57 +209,26 @@ LoadPaletteAndTileData:
     ldx #$2000  ; BG 3 tilemap starts here. (Byte address $4000.)
     stx VMADDR
     ; Now write entries into the tile map.
-    ; We have only a couple tiles, but we set the invert horizontal/vertical
-    ; bits so that we get more variation.  We also do 7 tiles per loop -- since
-    ; the tile map is 32 entries wide, this means that successive rows end up
-    ; looking different.
     ldy #0
 -
-    ldx #$0000
-    stx VMDATA
-    iny
-    ldx #$0000
-    stx VMDATA
-    iny
-    ldx #$0000
-    stx VMDATA
-    iny
-    ldx #$0000
-    stx VMDATA
-    iny
+    GetRandomByte
+    sta $00
+    ldx #$0000  ; This is a blank tile.
+    ; 1 in 8 chance that we choose a non-blank tile.
+    and #%00000111
+    cmp #%00000111
+    bne +
     ldx #$0002
-    stx VMDATA
-    iny
-    ldx #$0000
-    stx VMDATA
-    iny
-    ldx #$8004
-    stx VMDATA
-    iny
-    ldx #$0000
-    stx VMDATA
-    iny
-    ldx #$0000
-    stx VMDATA
-    iny
-    ldx #$0000
-    stx VMDATA
-    iny
-    ldx #$4002
-    stx VMDATA
-    iny
-    ldx #$0000
-    stx VMDATA
-    iny
-    ldx #$0000
-    stx VMDATA
-    iny
-    ldx #$A004
+    lda $00
+    and #%10000000
+    cmp #%10000000
+    bne +
+    ldx #$8002  ; Flip vertically.
++
     stx VMDATA
     iny
     ; The tile map is 32x32 (1024 entries).
-    ; This is the next multiple of 14 above that.
-    cpy #(74 * 14)
+    cpy #1024
     bne -
 
     rts
@@ -554,16 +541,20 @@ FillScratch:
 
 
 
+; Bank 1 is used for our graphics assets.
 .BANK 1 SLOT 0
 .ORG 0
-.SECTION "SpriteData"
+.SECTION "GraphicsData"
 .INCLUDE "sprites.asm"
+.INCLUDE "tiles.asm"
 .ENDS
 
 
 
+; Fill an entire bank with random numbers.
+.SEED 1
 .BANK 2 SLOT 0
 .ORG 0
-.SECTION "TileData"
-.INCLUDE "tiles.asm"
+.SECTION "RandomBytes"
+.DBRND 32 * 1024, 0, 255
 .ENDS
