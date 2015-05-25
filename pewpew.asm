@@ -14,7 +14,9 @@
 ; [gap]
 ; 0020-0021: (x, y) coordinates of player.
 ; 0022: shot cooldown timer.
-; 0030-0032: enable / x / y of shot.
+; 0023-0024: index of next shot.
+; [gap]
+; 0030-003F: {enable, x, y, unused} per shot (max 4 shots).
 ;
 ; Sprite table buffers -- copied each frame to OAM during VBlank, using DMA.
 ; 0100-02FF: table 1 (4 bytes each: x/y coord, tile #, flip/priority/palette)
@@ -29,6 +31,7 @@
 .define playerX $20
 .define playerY $21
 .define shotCooldown $22
+.define nextShotPtr $23
 .define shotData $30
 
 ; TODO(mcmillen): verify that we can relocate these without messing things up.
@@ -139,7 +142,6 @@ LoadPaletteAndTileData:
 
     ; Now, BG3 palette data.
     ; Palette entries for BG3 start at 0.
-    ; TODO(mcmillen): BG2 started at 32, but maybe that's only in mode 0?
     ldx #0
     lda #0
     sta CGADDR
@@ -256,10 +258,9 @@ InitializeSpriteTables:
     lda #$01
 -
     sta spriteTableStart, X
-    inx
-    inx
-    inx
-    inx
+    .rept 4
+        inx
+    .endr
     cpx #spriteTable1Size
     bne -
 
@@ -290,6 +291,10 @@ InitializeWorld:
     sta playerX
     lda #((224 - 32) / 2)
     sta playerY
+
+    ; Next shot pointer starts at the beginning.
+    ldx #shotData
+    stx nextShotPtr
     rts
 
 
@@ -436,23 +441,37 @@ MaybeShoot:
     ; If the cooldown timer is non-zero, don't shoot.
     lda shotCooldown
     cmp #0
-    bne +
+    bne ++
+    ldx nextShotPtr
+    stx $0060
     ; Enable shot; set its position to player position.
     lda #1
-    sta shotData
+    sta 0, X
     lda playerX
-    sta shotData + 1
+    sta 1, X
     lda playerY
-    sta shotData + 2
+    sta 2, X
+    ; Update nextShotPtr.
+    .rept 4
+        inx
+    .endr
+    cpx #$0040  ; TODO(mcmillen): use a constant.
+    bne +
+    ldx #shotData
++
+    stx nextShotPtr
+
     ; Set cooldown timer.
     lda #16
     sta shotCooldown
-+
+++
     rts
 
 
 
 UpdateWorld:
+    ; TODO(mcmillen): separate out "update world" from "update sprite table".
+
     ; Update shot cooldown.
     lda shotCooldown
     cmp #0
@@ -478,51 +497,57 @@ UpdateWorld:
     ora #%00000010  ; ... and make it the large size. (32x32)
     sta spriteTable2Start
 
-    ; Move shot coords.
-    ldx $0
-    lda shotData
+    ; Move shot coords and copy into sprite table.
+    ldx #0
+    ; To modify sprite table 2 - one bit set for each active shot.
+    ; These bits will be *removed* from the sprite table entry.
+    stz $00
+UpdateShot:
+    lsr $00
+    lsr $00
+    lda shotData, X
     cmp #1
     bne DisableShot
+    ; Add to the x-coordinate. If the carry bit is set, we went off the edge
+    ; of the screen, so disable the shot.
+    lda shotData + 1, X
+    clc
+    adc #6  ; x velocity
+    bcs DisableShot
+    sta shotData + 1, X  ; Store new x-coord.
 
-    lda shotData + 1
-    ; TODO(mcmillen): do this with an add, then check the carry bit?
-    .rept 6
-        ina
-        cmp #$00  ; If it wraps around, disable it.
-        bne +
-        stz shotData
-+
-    .endr
-    sta shotData + 1  ; Store new x-coord.
+    ; Set up shot in sprite table.
+    lda shotData + 1, X  ; x
+    ; TODO(mcmillen): document that shots start at $110?
+    sta $0110, X
+    lda shotData + 2, X  ; y
+    sta $0111, X
+    lda #8     ; which sprite?
+    sta $0112, X
 
-    ; See if sprite is still enabled after move.
-    lda shotData
-    cmp #1
-    bne DisableShot
-
-    ; Set up shot sprite.
-    lda shotData + 1  ; x
-    sta $0104
-    lda shotData + 2  ; y
-    sta $0105
-    lda #8     ; which sprite
-    sta $0106
-
-    lda $0300
-    and #%11111011  ; Display it.
-    ora #%00001000  ; and set it to large size.
-    sta $0300
+    lda $00
+    ora #%01000000
+    sta $00
     jmp ShotDone
 
 DisableShot:
     ; Disable it by setting x-position to 1 and setting the high x-bit.
     lda #1
-    sta $104
-    lda $0300
-    ora #%00000100
-    sta $0300
+    sta $110, X
 
 ShotDone:
+    ; TODO(mcmillen): in places where we .rept inx (etc), is it faster to use
+    ; actual addition?
+    .rept 4
+        inx
+    .endr
+    cpx #16
+    bne UpdateShot
+    ; Set the enable/disable (and size) bits of the shot sprites.
+    lda #$ff
+    eor $00
+    sta $0301
+
     ; Make the background scroll. Horizontal over time; vertical depending on
     ; player's y-coordinate.
     lda vBlankCounter
