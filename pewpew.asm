@@ -34,6 +34,8 @@
 ; 0018-0019: 16-bit pointer to next random byte.
 ; 0020-0021: (x, y) coordinates of player.
 ; 0022-0024: RGB color values to use for background color, from [0-31].
+; 0025: shot cooldown timer.
+; 0030-0032: enable / x / y of shot.
 ;
 ; Sprite table buffers -- copied each frame to OAM during VBlank, using DMA.
 ; 0100-02FF: table 1 (4 bytes each: x/y coord, tile #, flip/priority/palette)
@@ -76,9 +78,6 @@ Start:
     stz JOY1H
     stz JOY1L
 
-    ; Write something recognizable into our scratch space.
-    jsr FillScratch
-
     ; Start the background color as a dark blue.
     lda #4
     sta $24
@@ -86,13 +85,16 @@ Start:
     ; Player's initial starting location.
     lda #(256 / 4)
     sta $20
-    lda #((224 - 16) / 2)
+    lda #((224 - 32) / 2)
     sta $21
 
 
 
 MainLoop:
     wai  ; Wait for interrupt.
+    jsr JoypadHandler
+    jsr SetBackgroundColor
+    jsr UpdateGraphics
     jmp MainLoop
 
 
@@ -276,10 +278,7 @@ InitializeSpriteTables:
 
 
 VBlankHandler:
-    jsr VBlankCounter  ; DEBUG
-    jsr JoypadHandler
-    jsr SetBackgroundColor
-    jsr UpdateGraphics
+    jsr VBlankCounter
     jsr DMASpriteTables
     rti
 
@@ -345,27 +344,27 @@ JoypadRight:
     lda JOY1H
     and #$01
     cmp #$01  ; Right
-    bne JoypadB  ; Button not pressed.
+    bne JoypadStart  ; Button not pressed.
     lda $20
     cmp #(256 - 32)
-    beq JoypadB  ; Value saturated.
+    beq JoypadStart  ; Value saturated.
     inc $20
     inc $20
 
-JoypadB:
+JoypadStart:
     lda JOY1H
-    and #$80  ; B
-    cmp #$80
-    bne JoypadA  ; Button not pressed.
+    and #$10  ; Start
+    cmp #$10
+    bne JoypadSelect  ; Button not pressed.
     lda $22
     cmp #0
-    beq JoypadA  ; Value saturated.
+    beq JoypadSelect  ; Value saturated.
     dec $22
 
-JoypadA:
-    lda JOY1L
-    and #$80  ; A
-    cmp #$80
+JoypadSelect:
+    lda JOY1H
+    and #$20  ; Select
+    cmp #$20
     bne JoypadY  ; Button not pressed.
     lda $22
     cmp #31
@@ -406,16 +405,21 @@ JoypadR:
     lda JOY1L
     and #$10  ; R
     cmp #$10
-    bne JoypadDone  ; Button not pressed.
+    bne JoypadB  ; Button not pressed.
     lda $24
     cmp #31
-    beq JoypadDone  ; Value saturated.
+    beq JoypadB  ; Value saturated.
     inc $24
 
-; TODO(mcmillen): have Start and Select do something too.
+JoypadB:
+    lda JOY1H
+    and #$80  ; Start.
+    cmp #$80
+    bne JoypadDone
+    jsr MaybeShoot
 
 JoypadDone:
-    rts  
+    rts
 
 
 
@@ -429,6 +433,26 @@ JoypadDebug:
     sta $12
     lda JOY2H
     sta $13
+    rts
+
+
+
+MaybeShoot:
+    ; If the cooldown timer is non-zero, don't shoot.
+    lda $25
+    cmp #0
+    bne +
+    ; Enable shot; set its position to player position.
+    lda #1
+    sta $30
+    lda $20
+    sta $31
+    lda $21
+    sta $32
+    ; Set cooldown timer.
+    lda #16
+    sta $25
++
     rts
 
 
@@ -466,12 +490,22 @@ SetBackgroundColor:
 
 
 UpdateGraphics:
+    ; Update shot cooldown.
+    lda $0025
+    cmp #0
+    beq +
+    dea
+    sta $0025
++
+
     ; Copy player coords into sprite table.
     lda $0020
     sta $0100
     lda $0021
     sta $0101
-    ; Choose which sprite based on frame count.
+    ; Set the sprite.
+    lda #0
+    sta $0102
     ; Set priority bits so that the sprite is drawn in front.
     lda #%00110000
     sta $0103
@@ -481,6 +515,50 @@ UpdateGraphics:
     ora #%00000010  ; ... and make it the large size. (32x32)
     sta $0300
 
+    ; Move shot coords.
+    ldx $0
+    lda $30
+    cmp #1
+    bne DisableShot
+
+    lda $31
+    ; TODO(mcmillen): do this with an add, then check the carry bit?
+    .rept 6
+        ina
+        cmp #$00  ; If it wraps around, disable it.
+        bne +
+        stz $30
++
+    .endr
+    sta $0031  ; Store new x-coord.
+
+    ; See if sprite is still enabled after move.
+    lda $0030
+    cmp #1
+    bne DisableShot
+
+    ; Set up shot sprite.
+    lda $0031  ; x
+    sta $0104
+    lda $0032  ; y
+    sta $0105
+    lda #8     ; which sprite
+    sta $0106
+
+    lda $0300
+    and #%11111011  ; Display it.
+    ora #%00001000  ; and set it to large size.
+    sta $0300
+    jmp ShotDone
+
+DisableShot:
+    ; Disable it by setting x-position to zero and setting the high x-bit.
+    stz $104
+    lda $0300
+    ora #%00000100
+    sta $0300
+
+ShotDone:
     ; Make the background scroll. Horizontal over time; vertical depending on
     ; player's y-coordinate.
     lda $14
@@ -519,17 +597,6 @@ DMASpriteTables:
     sta DMAENABLE
     rts
 
-
-
-FillScratch:
-    lda #$42  ; ASCII "B"
-    ldx #0
--
-    sta $00, X
-    inx
-    cpx #$10
-    bne -
-    rts
 
 
 .ENDS
