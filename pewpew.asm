@@ -30,7 +30,7 @@
 ; 0000-000F: scratch space for functions.
 ; 0010-0011: controller state of joypad #1.
 ; 0012-0013: controller state of joypad #2.
-; 0014-0017: 32-bit counter of vblanks.
+; 0014-0016: 24-bit counter of vblanks.
 ; 0018-0019: 16-bit pointer to next random byte.
 ; 0020-0021: (x, y) coordinates of player.
 ; 0022-0024: RGB color values to use for background color, from [0-31].
@@ -45,8 +45,15 @@
 Start:
     InitializeSNES
 
+    ; Store zeroes to the controller status registers.
+    ; TODO(mcmillen): is this needed? I think the system will overwrite these
+    ; automatically.
+    stz JOY1H
+    stz JOY1L
+
     jsr LoadPaletteAndTileData
     jsr InitializeSpriteTables
+    jsr InitializeWorld
 
     ; Set screen mode: 16x16 tiles for backgrounds, mode 1.
     lda #%11000001
@@ -72,29 +79,6 @@ Start:
     lda #%10000001
     sta NMITIMEN
 
-    ; Store zeroes to the controller status registers.
-    ; TODO(mcmillen): is this needed? I think the system will overwrite these
-    ; automatically.
-    stz JOY1H
-    stz JOY1L
-
-    ; Start the background color as a dark blue.
-    lda #4
-    sta $24
-
-    ; Player's initial starting location.
-    lda #(256 / 4)
-    sta $20
-    lda #((224 - 32) / 2)
-    sta $21
-
-
-
-MainLoop:
-    wai  ; Wait for interrupt.
-    jsr JoypadHandler
-    jsr SetBackgroundColor
-    jsr UpdateGraphics
     jmp MainLoop
 
 
@@ -277,35 +261,45 @@ InitializeSpriteTables:
 
 
 
-VBlankHandler:
-    jsr VBlankCounter
-    jsr DMASpriteTables
-    rti
+InitializeWorld:
+    ; Start the background color as a dark blue.
+    lda #4
+    sta $24
+
+    ; Player's initial starting location.
+    lda #(256 / 4)
+    sta $20
+    lda #((224 - 32) / 2)
+    sta $21
+    rts
 
 
 
-VBlankCounter:
-    ; Increment a counter of how many VBlanks we've done.
-    inc $14
-    lda $14
-    cmp #$00
-    bne VBlankCounterDone
-    inc $15
-    lda $15
-    cmp #$00
-    bne VBlankCounterDone
-    inc $16
-    lda $16
-    cmp #$00
-    bne VBlankCounterDone
-    inc $17
-VBlankCounterDone:
+MainLoop:
+    wai  ; Wait for interrupt.
+    jsr JoypadDebug
+    jsr JoypadHandler
+    jsr UpdateWorld
+    jsr SetBackgroundColor
+    jmp MainLoop
+
+
+
+JoypadDebug:
+    ; Load joypad registers into RAM for easier inspection.
+    lda JOY1L
+    sta $10
+    lda JOY1H
+    sta $11
+    lda JOY2L
+    sta $12
+    lda JOY2H
+    sta $13
     rts
 
 
 
 JoypadHandler:
-    jsr JoypadDebug  ; DEBUG
 
 JoypadUp:
     lda JOY1H
@@ -413,26 +407,12 @@ JoypadR:
 
 JoypadB:
     lda JOY1H
-    and #$80  ; Start.
+    and #$80  ; B
     cmp #$80
     bne JoypadDone
     jsr MaybeShoot
 
 JoypadDone:
-    rts
-
-
-
-JoypadDebug:
-    ; Load joypad registers into RAM for easier inspection.
-    lda JOY1L
-    sta $10
-    lda JOY1H
-    sta $11
-    lda JOY2L
-    sta $12
-    lda JOY2H
-    sta $13
     rts
 
 
@@ -457,39 +437,7 @@ MaybeShoot:
 
 
 
-SetBackgroundColor:
-    ; $22 $23 $24 are (R, G, B), each ranging from [0-31].
-    ; The palette color format is 15-bit: [0bbbbbgg][gggrrrrr]
-    
-    ; Set the background color.
-    ; Entry 0 corresponds to the SNES background color.
-    stz CGADDR
-
-    ; Compute and the low-order byte and store it in CGDATA.
-    lda $23  ; Green.
-    .rept 5
-        asl
-    .endr
-    ora $22  ; Red.
-    sta CGDATA
-
-    ; Compute the high-order byte and store it in CGDATA.
-    lda $24  ; Blue.
-    .rept 2
-        asl
-    .endr
-    sta $00
-    lda $23  ; Green.
-    .rept 3
-        lsr
-    .endr
-    ora $00
-    sta CGDATA
-    rts
-
-
-
-UpdateGraphics:
+UpdateWorld:
     ; Update shot cooldown.
     lda $0025
     cmp #0
@@ -572,6 +520,63 @@ ShotDone:
     sta BG3VOFS
     stz BG3VOFS
 
+    rts
+
+
+
+SetBackgroundColor:
+    ; $22 $23 $24 are (R, G, B), each ranging from [0-31].
+    ; The palette color format is 15-bit: [0bbbbbgg][gggrrrrr]
+    
+    ; Set the background color.
+    ; Entry 0 corresponds to the SNES background color.
+    stz CGADDR
+
+    ; Compute and the low-order byte and store it in CGDATA.
+    lda $23  ; Green.
+    .rept 5
+        asl
+    .endr
+    ora $22  ; Red.
+    sta CGDATA
+
+    ; Compute the high-order byte and store it in CGDATA.
+    lda $24  ; Blue.
+    .rept 2
+        asl
+    .endr
+    sta $00
+    lda $23  ; Green.
+    .rept 3
+        lsr
+    .endr
+    ora $00
+    sta CGDATA
+    rts
+
+
+
+VBlankHandler:
+    jsr VBlankCounter
+    jsr DMASpriteTables
+    rti
+
+
+
+VBlankCounter:
+    ; Increment a counter of how many VBlanks we've done.
+    ; This is a 24-bit counter. At 60 vblanks/second, this will take over
+    ; 77 hours to wrap around; that's good enough for me :)
+    inc $14
+    lda $14
+    cmp #$00
+    bne VBlankCounterDone
+    inc $15
+    lda $15
+    cmp #$00
+    bne VBlankCounterDone
+    inc $16
+VBlankCounterDone:
     rts
 
 
