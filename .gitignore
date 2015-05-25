@@ -1,2 +1,4 @@
 *.smc
-.wla5692a
+.wla*
+*.pic
+*.clr
