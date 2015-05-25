@@ -4,19 +4,53 @@
 
 
 
-; Assumes 16-bit X & 8-bit A.
+; Memory layout:
+; 0000-000F: scratch space for functions.
+; 0010-0011: controller state of joypad #1.
+; 0012-0013: controller state of joypad #2.
+; 0014-0016: 24-bit counter of vblanks.
+; 0017-0019: RGB color values to use for background color, from [0-31].
+; 001A-001B: 16-bit pointer to next random byte.
+; [gap]
+; 0020-0021: (x, y) coordinates of player.
+; 0022: shot cooldown timer.
+; 0030-0032: enable / x / y of shot.
+;
+; Sprite table buffers -- copied each frame to OAM during VBlank, using DMA.
+; 0100-02FF: table 1 (4 bytes each: x/y coord, tile #, flip/priority/palette)
+; 0300-031F: table 2 (2 bits each: high x-coord bit, size)
+.define joy1 $10
+.define joy2 $12
+.define vBlankCounter $14
+.define backgroundRed $17
+.define backgroundGreen $18
+.define backgroundBlue $19
+.define randomBytePtr $1A
+.define playerX $40
+.define playerY $41
+.define shotCooldown $42
+.define shotData $50
+
+; TODO(mcmillen): verify that we can relocate these without messing things up.
+.define spriteTableStart $100
+.define spriteTable1Size $200
+.define spriteTable2Start $300  ; TODO(mcmillen): use this.
+.define spriteTableSize $220
+
+
 ; Stores result to A.
+; Assumes 16-bit X & 8-bit A.
 ; Modifies X.
-; Updates $0018-$0019 to point at the next available random byte.
+; Updates randomBytePtr.
 .MACRO GetRandomByte
-    ldx $18
+    ldx randomBytePtr
     lda $028000, X  ; $028000: beginning of ROM bank 2.
     inx
     cpx #$8000  ; This is the size of the entire ROM bank.
     bne +
     ldx #0
 +
-    stx $18
+    stx randomBytePtr
 .ENDM
 
 
@@ -26,24 +60,15 @@
 .SECTION "MainCode"
 
 
-; Memory layout:
-; 0000-000F: scratch space for functions.
-; 0010-0011: controller state of joypad #1.
-; 0012-0013: controller state of joypad #2.
-; 0014-0016: 24-bit counter of vblanks.
-; 0018-0019: 16-bit pointer to next random byte.
-; 0020-0021: (x, y) coordinates of player.
-; 0022-0024: RGB color values to use for background color, from [0-31].
-; 0025: shot cooldown timer.
-; 0030-0032: enable / x / y of shot.
-;
-; Sprite table buffers -- copied each frame to OAM during VBlank, using DMA.
-; 0100-02FF: table 1 (4 bytes each: x/y coord, tile #, flip/priority/palette)
-; 0300-031F: table 2 (2 bits each: high x-coord bit, size)
-
 
 Start:
     InitializeSNES
+
+    ; By default we assume 16-bit X/Y and 8-bit A.
+    ; If any code wants to change this, it's expected to do so itself,
+    ; and to change them back to the defaults before returning.
+    rep #%00010000  ; 16-bit X/Y.
+    sep #%00100000  ; 8-bit A/B.
 
     ; Store zeroes to the controller status registers.
     ; TODO(mcmillen): is this needed? I think the system will overwrite these
@@ -95,12 +120,6 @@ LoadPaletteAndTileData:
     ; bazz's tutorial (available from http://wiki.superfamicom.org/snes/) is
     ; quite helpful with palette / sprites / DMA, especially starting at
     ; http://wiki.superfamicom.org/snes/show/Working+with+VRAM+-+Loading+the+Palette
-
-    ; 16-bit X/Y registers. Used for DMA source address & transfer size, both of
-    ; which want 16-bit values.
-    rep #%00010000
-    ; 8-bit A/B registers. Used for DMA source bank & destination address.
-    sep #%00100000
 
     ; Initialize the palette memory in a loop.
     ; We could also do this with a DMA transfer (like we do with the tile data
@@ -225,7 +244,7 @@ InitializeSpriteTables:
     ; It uses the same approach we're using, in which we keep a buffer of the
     ; sprite tables in RAM, and DMA the sprite tables to the system's OAM
     ; during VBlank.
-    rep #%00110000  ; 16-bit A/X/Y.
+    rep #%00100000  ; 16-bit A.
 
     ldx #$0000
     ; Fill sprite table 1.  4 bytes per sprite, laid out as follows:
@@ -236,12 +255,12 @@ InitializeSpriteTables:
     ;                        p: palette #
     lda #$01
 -
-    sta $0100, X  ; We keep our sprite table at $0100 and DMA it to OAM later.
+    sta spriteTableStart, X
     inx
     inx
     inx
     inx
-    cpx #$0200
+    cpx #spriteTable1Size
     bne -
 
     ; Fill sprite table 2.  2 bits per sprite, like so:
@@ -250,10 +269,10 @@ InitializeSpriteTables:
     ; Setting all the high bits keeps the sprites offscreen.
     lda #%0101010101010101
 -
-    sta $0100, X
+    sta spriteTableStart, X
     inx
     inx
-    cpx #$0220
+    cpx #spriteTableSize
     bne -
 
     sep #%00100000  ; 8-bit A.
@@ -268,9 +287,9 @@ InitializeWorld:
 
     ; Player's initial starting location.
     lda #(256 / 4)
-    sta $20
+    sta playerX
     lda #((224 - 32) / 2)
-    sta $21
+    sta playerY
     rts
 
 
@@ -287,14 +306,10 @@ MainLoop:
 
 JoypadDebug:
     ; Load joypad registers into RAM for easier inspection.
-    lda JOY1L
-    sta $10
-    lda JOY1H
-    sta $11
-    lda JOY2L
-    sta $12
-    lda JOY2H
-    sta $13
+    ldx JOY1L
+    stx joy1
+    ldx JOY2L
+    stx joy2
     rts
 
 
@@ -306,104 +321,104 @@ JoypadUp:
     and #$08  ; Up
     cmp #$08
     bne JoypadDown  ; Button not pressed.
-    lda $21
+    lda playerY
     cmp #0
     beq JoypadDown  ; Value saturated.
-    dec $21
-    dec $21
+    dec playerY
+    dec playerY
 
 JoypadDown:
     lda JOY1H
     and #$04
     cmp #$04
     bne JoypadLeft  ; Button not pressed.
-    lda $21
+    lda playerY
     cmp #(224 - 32)
     beq JoypadLeft  ; Value saturated.
-    inc $21
-    inc $21
+    inc playerY
+    inc playerY
 
 JoypadLeft:
     lda JOY1H
     and #$02  ; Left
     cmp #$02
     bne JoypadRight  ; Button not pressed.
-    lda $20
+    lda playerX
     cmp #0
     beq JoypadRight  ; Value saturated.
-    dec $20
-    dec $20
+    dec playerX
+    dec playerX
 
 JoypadRight:
     lda JOY1H
     and #$01
     cmp #$01  ; Right
     bne JoypadStart  ; Button not pressed.
-    lda $20
+    lda playerX
     cmp #(256 - 32)
     beq JoypadStart  ; Value saturated.
-    inc $20
-    inc $20
+    inc playerX
+    inc playerX
 
 JoypadStart:
     lda JOY1H
     and #$10  ; Start
     cmp #$10
     bne JoypadSelect  ; Button not pressed.
-    lda $22
+    lda backgroundRed
     cmp #0
     beq JoypadSelect  ; Value saturated.
-    dec $22
+    dec backgroundRed
 
 JoypadSelect:
     lda JOY1H
     and #$20  ; Select
     cmp #$20
     bne JoypadY  ; Button not pressed.
-    lda $22
+    lda backgroundRed
     cmp #31
     beq JoypadY  ; Value saturated.
-    inc $22
+    inc backgroundRed
 
 JoypadY:
     lda JOY1H
     and #$40  ; Y
     cmp #$40
     bne JoypadX  ; Button not pressed.
-    lda $23
+    lda backgroundGreen
     cmp #0
     beq JoypadX  ; Value saturated.
-    dec $23
+    dec backgroundGreen
 
 JoypadX:
     lda JOY1L
     and #$40  ; X
     cmp #$40
     bne JoypadL  ; Button not pressed.
-    lda $23
+    lda backgroundGreen
     cmp #31
     beq JoypadL  ; Value saturated.
-    inc $23
+    inc backgroundGreen
 
 JoypadL:
     lda JOY1L
     and #$20  ; L
     cmp #$20
     bne JoypadR  ; Button not pressed.
-    lda $24
+    lda backgroundBlue
     cmp #0
     beq JoypadR  ; Value saturated.
-    dec $24
+    dec backgroundBlue
 
 JoypadR:
     lda JOY1L
     and #$10  ; R
     cmp #$10
     bne JoypadB  ; Button not pressed.
-    lda $24
+    lda backgroundBlue
     cmp #31
     beq JoypadB  ; Value saturated.
-    inc $24
+    inc backgroundBlue
 
 JoypadB:
     lda JOY1H
@@ -419,19 +434,19 @@ JoypadDone:
 
 MaybeShoot:
     ; If the cooldown timer is non-zero, don't shoot.
-    lda $25
+    lda shotCooldown
     cmp #0
     bne +
     ; Enable shot; set its position to player position.
     lda #1
-    sta $30
-    lda $20
-    sta $31
-    lda $21
-    sta $32
+    sta shotData
+    lda playerX
+    sta shotData + 1
+    lda playerY
+    sta shotData + 2
     ; Set cooldown timer.
     lda #16
-    sta $25
+    sta shotCooldown
 +
     rts
 
@@ -439,17 +454,17 @@ MaybeShoot:
 
 UpdateWorld:
     ; Update shot cooldown.
-    lda $0025
+    lda shotCooldown
     cmp #0
     beq +
     dea
-    sta $0025
+    sta shotCooldown
 +
 
     ; Copy player coords into sprite table.
-    lda $0020
+    lda playerX
     sta $0100
-    lda $0021
+    lda playerY
     sta $0101
     ; Set the sprite.
     lda #0
@@ -458,37 +473,37 @@ UpdateWorld:
     lda #%00110000
     sta $0103
     ; Clear x-MSB so that the sprite is displayed.
-    lda $0300
+    lda spriteTable2Start
     and #%11111110
     ora #%00000010  ; ... and make it the large size. (32x32)
-    sta $0300
+    sta spriteTable2Start
 
     ; Move shot coords.
     ldx $0
-    lda $30
+    lda shotData
     cmp #1
     bne DisableShot
 
-    lda $31
+    lda shotData + 1
     ; TODO(mcmillen): do this with an add, then check the carry bit?
     .rept 6
         ina
         cmp #$00  ; If it wraps around, disable it.
         bne +
-        stz $30
+        stz shotData
 +
     .endr
-    sta $0031  ; Store new x-coord.
+    sta shotData + 1  ; Store new x-coord.
 
     ; See if sprite is still enabled after move.
-    lda $0030
+    lda shotData
     cmp #1
     bne DisableShot
 
     ; Set up shot sprite.
-    lda $0031  ; x
+    lda shotData + 1  ; x
     sta $0104
-    lda $0032  ; y
+    lda shotData + 2  ; y
     sta $0105
     lda #8     ; which sprite
     sta $0106
@@ -500,8 +515,9 @@ UpdateWorld:
     jmp ShotDone
 
 DisableShot:
-    ; Disable it by setting x-position to zero and setting the high x-bit.
-    stz $104
+    ; Disable it by setting x-position to 1 and setting the high x-bit.
+    lda #1
+    sta $104
     lda $0300
     ora #%00000100
     sta $0300
@@ -509,11 +525,11 @@ DisableShot:
 ShotDone:
     ; Make the background scroll. Horizontal over time; vertical depending on
     ; player's y-coordinate.
-    lda $14
+    lda vBlankCounter
     sta BG3HOFS
-    lda $15
+    lda vBlankCounter + 1
     sta BG3HOFS
-    lda $21
+    lda playerY
     .rept 3
         lsr
     .endr
@@ -525,7 +541,7 @@ ShotDone:
 
 
 SetBackgroundColor:
-    ; $22 $23 $24 are (R, G, B), each ranging from [0-31].
+    ; The background-color bytes are (R, G, B), each ranging from [0-31].
     ; The palette color format is 15-bit: [0bbbbbgg][gggrrrrr]
     
     ; Set the background color.
@@ -533,20 +549,20 @@ SetBackgroundColor:
     stz CGADDR
 
     ; Compute and the low-order byte and store it in CGDATA.
-    lda $23  ; Green.
+    lda backgroundGreen
     .rept 5
         asl
     .endr
-    ora $22  ; Red.
+    ora backgroundRed
     sta CGDATA
 
     ; Compute the high-order byte and store it in CGDATA.
-    lda $24  ; Blue.
+    lda backgroundBlue
     .rept 2
         asl
     .endr
     sta $00
-    lda $23  ; Green.
+    lda backgroundGreen
     .rept 3
         lsr
     .endr
@@ -565,25 +581,23 @@ VBlankHandler:
 
 VBlankCounter:
     ; Increment a counter of how many VBlanks we've done.
-    ; This is a 24-bit counter. At 60 vblanks/second, this will take over
+    ; This is a 24-bit counter. At 60 vblanks/second, this will take
     ; 77 hours to wrap around; that's good enough for me :)
-    inc $14
-    lda $14
+    inc vBlankCounter
+    lda vBlankCounter
     cmp #$00
     bne VBlankCounterDone
-    inc $15
-    lda $15
+    inc vBlankCounter + 1
+    lda vBlankCounter + 1
     cmp #$00
     bne VBlankCounterDone
-    inc $16
+    inc vBlankCounter + 2
 VBlankCounterDone:
     rts
 
 
 
 DMASpriteTables:
-    rep #%00010000  ; 16-bit X/Y.
-    sep #%00100000  ; 8-bit A.
     ; Store at the base OAM address.
     ldx #$0000
     stx OAMADDR
@@ -592,10 +606,10 @@ DMASpriteTables:
     lda #$04
     sta DMA0DST
     ; Our sprites start at $0100 in bank 0 and are #$220 bytes long.
-    ldx #$0100
+    ldx #spriteTableStart
     stx DMA0SRC
     stz DMA0SRCBANK
-    ldx #$0220
+    ldx #spriteTableSize
     stx DMA0SIZE
     ; Kick off the DMA transfer.
     lda #%00000001
