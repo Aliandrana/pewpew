@@ -62,7 +62,7 @@ Start:
     jsr FillScratch
 
     ; Start the background color as a dark blue.
-    lda #8
+    lda #4
     sta $24
 
     ; Player's initial starting location.
