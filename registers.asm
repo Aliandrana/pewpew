@@ -22,7 +22,7 @@
 ; http://www.dforce3000.de/pub/doc/anomie_regs.txt
 
 ; $2100: Screen display initialization [INIDISP]
-; Format: x000bbbb 
+; Format: x000bbbb
 ; x: 0 = screen on, 1 = screen off, bbbb: Brightness ($0-$F)
 .define INIDISP $2100
 

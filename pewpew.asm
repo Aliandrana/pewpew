@@ -95,8 +95,8 @@ Start:
     lda #%00010100
     sta MSENABLE
 
-    ; Turn on the screen. 
-    ; Format: x000bbbb 
+    ; Turn on the screen.
+    ; Format: x000bbbb
     ; x: 0 = screen on, 1 = screen off, bbbb: Brightness ($0-$F)
     lda #%00001111
     sta INIDISP
@@ -133,7 +133,7 @@ LoadPaletteAndTileData:
     ldx #0
     lda #128  ; Palette entries for sprites start at 128.
     sta CGADDR
--    
+-
     lda.l SpritePalette, X
     sta CGDATA
     inx
