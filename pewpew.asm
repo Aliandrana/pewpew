@@ -284,7 +284,7 @@ InitializeSpriteTables:
 InitializeWorld:
     ; Start the background color as a dark blue.
     lda #4
-    sta $24
+    sta backgroundBlue
 
     ; Player's initial starting location.
     lda #(256 / 4)
@@ -568,7 +568,7 @@ ShotDone:
 SetBackgroundColor:
     ; The background-color bytes are (R, G, B), each ranging from [0-31].
     ; The palette color format is 15-bit: [0bbbbbgg][gggrrrrr]
-    
+
     ; Set the background color.
     ; Entry 0 corresponds to the SNES background color.
     stz CGADDR
