@@ -32,7 +32,8 @@
 .define playerY $21
 .define shotCooldown $22
 .define nextShotPtr $23
-.define shotData $30
+.define shotArray $30
+.define shotArrayLength 4
 
 ; TODO(mcmillen): verify that we can relocate these without messing things up.
 .define spriteTableStart $100
@@ -293,7 +294,7 @@ InitializeWorld:
     sta playerY
 
     ; Next shot pointer starts at the beginning.
-    ldx #shotData
+    ldx #shotArray
     stx nextShotPtr
     rts
 
@@ -455,9 +456,9 @@ MaybeShoot:
     .rept 4
         inx
     .endr
-    cpx #$0040  ; TODO(mcmillen): use a constant.
+    cpx #(shotArray + shotArrayLength * 4)
     bne +
-    ldx #shotData
+    ldx #shotArray
 +
     stx nextShotPtr
 
@@ -505,22 +506,22 @@ UpdateWorld:
 UpdateShot:
     lsr $00
     lsr $00
-    lda shotData, X
+    lda shotArray, X
     cmp #1
     bne DisableShot
     ; Add to the x-coordinate. If the carry bit is set, we went off the edge
     ; of the screen, so disable the shot.
-    lda shotData + 1, X
+    lda shotArray + 1, X
     clc
     adc #6  ; x velocity
     bcs DisableShot
-    sta shotData + 1, X  ; Store new x-coord.
+    sta shotArray + 1, X  ; Store new x-coord.
 
     ; Set up shot in sprite table.
-    lda shotData + 1, X  ; x
+    lda shotArray + 1, X  ; x
     ; TODO(mcmillen): document that shots start at $110?
     sta $0110, X
-    lda shotData + 2, X  ; y
+    lda shotArray + 2, X  ; y
     sta $0111, X
     lda #8     ; which sprite?
     sta $0112, X
