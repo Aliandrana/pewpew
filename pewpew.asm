@@ -221,13 +221,10 @@ LoadPaletteAndTileData:
     sta $00
     ldx #$0000  ; This is a blank tile.
     ; 1 in 8 chance that we choose a non-blank tile.
-    and #%00000111
-    cmp #%00000111
+    bit #%00000111
     bne +
     ldx #$0002
-    lda $00
-    and #%10000000
-    cmp #%10000000
+    bit #%10000000
     bne +
     ldx #$8002  ; Flip vertically.
 +
@@ -324,9 +321,8 @@ JoypadHandler:
 ; TODO(mcmillen): handle joystick using 16-bit loads?
 JoypadUp:
     lda JOY1H
-    and #$08  ; Up
-    cmp #$08
-    bne JoypadDown  ; Button not pressed.
+    bit #$08  ; Up
+    beq JoypadDown  ; Button not pressed.
     lda playerY
     cmp #0
     beq JoypadDown  ; Value saturated.
@@ -335,9 +331,8 @@ JoypadUp:
 
 JoypadDown:
     lda JOY1H
-    and #$04
-    cmp #$04
-    bne JoypadLeft  ; Button not pressed.
+    bit #$04  ; Down
+    beq JoypadLeft  ; Button not pressed.
     lda playerY
     cmp #(224 - 32)
     beq JoypadLeft  ; Value saturated.
@@ -346,9 +341,8 @@ JoypadDown:
 
 JoypadLeft:
     lda JOY1H
-    and #$02  ; Left
-    cmp #$02
-    bne JoypadRight  ; Button not pressed.
+    bit #$02  ; Left
+    beq JoypadRight  ; Button not pressed.
     lda playerX
     cmp #0
     beq JoypadRight  ; Value saturated.
@@ -357,9 +351,8 @@ JoypadLeft:
 
 JoypadRight:
     lda JOY1H
-    and #$01
-    cmp #$01  ; Right
-    bne JoypadStart  ; Button not pressed.
+    bit #$01  ; Right
+    beq JoypadStart  ; Button not pressed.
     lda playerX
     cmp #(256 - 32)
     beq JoypadStart  ; Value saturated.
@@ -368,29 +361,26 @@ JoypadRight:
 
 JoypadStart:
     lda JOY1H
-    and #$10  ; Start
-    cmp #$10
-    bne JoypadSelect  ; Button not pressed.
+    bit #$10  ; Start
+    beq JoypadSelect  ; Button not pressed.
     lda backgroundRed
-    cmp #0
+    cmp #31
     beq JoypadSelect  ; Value saturated.
-    dec backgroundRed
+    inc backgroundRed
 
 JoypadSelect:
     lda JOY1H
-    and #$20  ; Select
-    cmp #$20
-    bne JoypadY  ; Button not pressed.
+    bit #$20  ; Select
+    beq JoypadY  ; Button not pressed.
     lda backgroundRed
-    cmp #31
+    cmp #0
     beq JoypadY  ; Value saturated.
-    inc backgroundRed
+    dec backgroundRed
 
 JoypadY:
     lda JOY1H
-    and #$40  ; Y
-    cmp #$40
-    bne JoypadX  ; Button not pressed.
+    bit #$40  ; Y
+    beq JoypadX  ; Button not pressed.
     lda backgroundGreen
     cmp #0
     beq JoypadX  ; Value saturated.
@@ -398,9 +388,8 @@ JoypadY:
 
 JoypadX:
     lda JOY1L
-    and #$40  ; X
-    cmp #$40
-    bne JoypadL  ; Button not pressed.
+    bit #$40  ; X
+    beq JoypadL  ; Button not pressed.
     lda backgroundGreen
     cmp #31
     beq JoypadL  ; Value saturated.
@@ -408,9 +397,8 @@ JoypadX:
 
 JoypadL:
     lda JOY1L
-    and #$20  ; L
-    cmp #$20
-    bne JoypadR  ; Button not pressed.
+    bit #$20  ; L
+    beq JoypadR  ; Button not pressed.
     lda backgroundBlue
     cmp #0
     beq JoypadR  ; Value saturated.
@@ -418,9 +406,8 @@ JoypadL:
 
 JoypadR:
     lda JOY1L
-    and #$10  ; R
-    cmp #$10
-    bne JoypadB  ; Button not pressed.
+    bit #$10  ; R
+    beq JoypadB  ; Button not pressed.
     lda backgroundBlue
     cmp #31
     beq JoypadB  ; Value saturated.
@@ -428,9 +415,8 @@ JoypadR:
 
 JoypadB:
     lda JOY1H
-    and #$80  ; B
-    cmp #$80
-    bne JoypadDone
+    bit #$80  ; B
+    beq JoypadDone
     jsr MaybeShoot
 
 JoypadDone:
