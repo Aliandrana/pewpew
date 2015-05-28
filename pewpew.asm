@@ -596,15 +596,11 @@ VBlankCounter:
     ; This is a 24-bit counter. At 60 vblanks/second, this will take
     ; 77 hours to wrap around; that's good enough for me :)
     inc vBlankCounter
-    lda vBlankCounter
-    cmp #$00
-    bne VBlankCounterDone
+    bne +
     inc vBlankCounter + 1
-    lda vBlankCounter + 1
-    cmp #$00
-    bne VBlankCounterDone
+    bne +
     inc vBlankCounter + 2
-VBlankCounterDone:
++
     rts
 
 
