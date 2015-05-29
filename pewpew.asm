@@ -36,11 +36,12 @@
 .define shotArrayLength 4
 
 ; TODO(mcmillen): verify that we can relocate these without messing things up.
+.define numSprites 128
 .define spriteTableStart $100
 .define spriteTable1Size $200
-.define spriteTable2Start $300  ; TODO(mcmillen): use this.
+.define spriteTable2Start $300
 .define spriteTableSize $220
-
+.define spriteTableScratchStart $320
 
 ; Stores result to A.
 ; Assumes 16-bit X & 8-bit A.
@@ -266,7 +267,7 @@ InitializeSpriteTables:
     ; bits 0,2,4,6 - High bit of the sprite's x-coordinate.
     ; bits 1,3,5,7 - Toggle Sprite size: 0 - small size   1 - large size
     ; Setting all the high bits keeps the sprites offscreen.
-    lda #%0101010101010101
+    lda #$FFFF
 -
     sta spriteTableStart, X
     inx
@@ -302,6 +303,7 @@ MainLoop:
     jsr JoypadDebug
     jsr JoypadHandler
     jsr UpdateWorld
+    jsr FillSecondarySpriteTable
     jsr SetBackgroundColor
     jmp MainLoop
 
@@ -430,7 +432,6 @@ MaybeShoot:
     cmp #0
     bne ++
     ldx nextShotPtr
-    stx $0060
     ; Enable shot; set its position to player position.
     lda #1
     sta 0, X
@@ -459,6 +460,14 @@ MaybeShoot:
 UpdateWorld:
     ; TODO(mcmillen): separate out "update world" from "update sprite table".
 
+    ; Zero out the scratch space for the secondary sprite table.
+    ldx #0
+-
+    stz spriteTableScratchStart, X
+    inx
+    cpx #numSprites
+    bne -
+
     ; Update shot cooldown.
     lda shotCooldown
     cmp #0
@@ -479,13 +488,11 @@ UpdateWorld:
     lda #%00110000
     sta $0103
     ; Clear x-MSB so that the sprite is displayed.
-    lda spriteTable2Start
-    and #%11111110
-    ora #%00000010  ; ... and make it the large size. (32x32)
-    sta spriteTable2Start
+    lda #%01000000
+    sta spriteTableScratchStart
 
     ; Move shot coords and copy into sprite table.
-    ldx #0
+    ldy #0  ; Position in secondary scratch sprite table.
     ; To modify sprite table 2 - one bit set for each active shot.
     ; These bits will be *removed* from the sprite table entry.
     stz $00
@@ -512,9 +519,9 @@ UpdateShot:
     lda #8     ; which sprite?
     sta $0112, X
 
-    lda $00
-    ora #%01000000
-    sta $00
+    ; Update secondary sprite table.
+    lda #%01000000
+    sta spriteTableScratchStart + 4, Y
     jmp ShotDone
 
 DisableShot:
@@ -528,12 +535,9 @@ ShotDone:
     .rept 4
         inx
     .endr
-    cpx #16
+    iny
+    cpx #(4 * shotArrayLength)
     bne UpdateShot
-    ; Set the enable/disable (and size) bits of the shot sprites.
-    lda #$ff
-    eor $00
-    sta $0301
 
     ; Make the background scroll. Horizontal over time; vertical depending on
     ; player's y-coordinate.
@@ -548,6 +552,42 @@ ShotDone:
     sta BG3VOFS
     stz BG3VOFS
 
+    rts
+
+
+
+FillSecondarySpriteTable:
+    ; The secondary sprite table wants 2 bits for each sprite: one to set the
+    ; sprite's size, and one that's the high bit of the sprite's x-coordinate.
+    ; It's annoying to deal with bitfields when thinking about business logic,
+    ; so the spriteTableScratch array contains one byte for each sprite, in
+    ; which the two most significant bits are the "size" and "upper x" bits.
+    ; This function is meant to be called after UpdateWorld, and packs those
+    ; bytes into the actual bitfield that the OAM wants for the secondary
+    ; sprite table.
+    ldx #0  ; Index into input table.
+    ldy #0  ; Index into output table.
+-
+    stz $00  ; Current byte; filled out by a set of 4 input table entries.
+    .rept 4
+        ; For each byte, the lower-order bits correspond to the lower-numbered
+        ; sprites; therefore we insert the current sprite's bits "at the top"
+        ; and shift them right for each successive sprite.
+        lsr $00
+        lsr $00
+        lda spriteTableScratchStart, X
+        ora $00
+        sta $00
+        inx
+    .endr
+    ; TODO(mcmillen): change the semantics of the scratch table so that
+    ; "1" = "big"?
+    lda $00
+    eor #$FF
+    sta spriteTable2Start, Y
+    iny
+    cpx #numSprites
+    bne -
     rts
 
 
