@@ -492,6 +492,7 @@ UpdateWorld:
     sta spriteTableScratchStart
 
     ; Move shot coords and copy into sprite table.
+    ldx #0  ; Position in main sprite table.
     ldy #0  ; Position in secondary scratch sprite table.
     ; To modify sprite table 2 - one bit set for each active shot.
     ; These bits will be *removed* from the sprite table entry.
