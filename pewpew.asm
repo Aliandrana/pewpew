@@ -43,6 +43,29 @@
 .define spriteTableSize $220
 .define spriteTableScratchStart $320
 
+
+
+; Sets A to 8-bit (& enables 8-bit "B" register).
+.MACRO SetA8Bit
+sep #%00100000  ; 8-bit A/B.
+.ENDM
+
+
+
+; Sets A to 16-bit.
+.MACRO SetA16Bit
+rep #%00100000  ; 16-bit A.
+.ENDM
+
+
+
+; Sets X/Y to 16-bit.
+.MACRO SetXY16Bit
+rep #%00010000  ; 16-bit X/Y.
+.ENDM
+
+
+
 ; Stores result to A.
 ; Assumes 16-bit X & 8-bit A.
 ; Modifies X.
@@ -72,14 +95,14 @@ Start:
     ; By default we assume 16-bit X/Y and 8-bit A.
     ; If any code wants to change this, it's expected to do so itself,
     ; and to change them back to the defaults before returning.
-    rep #%00010000  ; 16-bit X/Y.
-    sep #%00100000  ; 8-bit A/B.
+    SetXY16Bit
+    SetA8Bit
 
     ; Store zeroes to the controller status registers.
     ; TODO(mcmillen): is this needed? I think the system will overwrite these
     ; automatically.
-    stz JOY1H
-    stz JOY1L
+    stz joy1
+    stz joy1 + 1
 
     jsr LoadPaletteAndTileData
     jsr InitializeSpriteTables
@@ -102,12 +125,6 @@ Start:
     ; x: 0 = screen on, 1 = screen off, bbbb: Brightness ($0-$F)
     lda #%00001111
     sta INIDISP
-
-    ; Enable NMI interrupt & joypad.
-    ; n-vh---j   n: NMI interrupt enable         v: vertical counter enable
-    ;            h: horizontal counter enable    j: joypad enable
-    lda #%10000001
-    sta NMITIMEN
 
     jmp MainLoop
 
@@ -245,7 +262,7 @@ InitializeSpriteTables:
     ; It uses the same approach we're using, in which we keep a buffer of the
     ; sprite tables in RAM, and DMA the sprite tables to the system's OAM
     ; during VBlank.
-    rep #%00100000  ; 16-bit A.
+    SetA16Bit
 
     ldx #$0000
     ; Fill sprite table 1.  4 bytes per sprite, laid out as follows:
@@ -275,7 +292,7 @@ InitializeSpriteTables:
     cpx #spriteTableSize
     bne -
 
-    sep #%00100000  ; 8-bit A.
+    SetA8Bit
     rts
 
 
@@ -299,7 +316,12 @@ InitializeWorld:
 
 
 MainLoop:
+    lda #%10000001  ; Enable NMI interrupt & auto joypad read.
+    sta NMITIMEN
     wai  ; Wait for interrupt.
+    lda #%00000001  ; Disable NMI interrupt while processing.
+    sta NMITIMEN
+
     jsr JoypadDebug
     jsr JoypadHandler
     jsr UpdateWorld
@@ -322,7 +344,7 @@ JoypadDebug:
 JoypadHandler:
 ; TODO(mcmillen): handle joystick using 16-bit loads?
 JoypadUp:
-    lda JOY1H
+    lda joy1 + 1
     bit #$08  ; Up
     beq JoypadDown  ; Button not pressed.
     lda playerY
@@ -332,7 +354,7 @@ JoypadUp:
     dec playerY
 
 JoypadDown:
-    lda JOY1H
+    lda joy1 + 1
     bit #$04  ; Down
     beq JoypadLeft  ; Button not pressed.
     lda playerY
@@ -342,7 +364,7 @@ JoypadDown:
     inc playerY
 
 JoypadLeft:
-    lda JOY1H
+    lda joy1 + 1
     bit #$02  ; Left
     beq JoypadRight  ; Button not pressed.
     lda playerX
@@ -352,7 +374,7 @@ JoypadLeft:
     dec playerX
 
 JoypadRight:
-    lda JOY1H
+    lda joy1 + 1
     bit #$01  ; Right
     beq JoypadStart  ; Button not pressed.
     lda playerX
@@ -362,7 +384,7 @@ JoypadRight:
     inc playerX
 
 JoypadStart:
-    lda JOY1H
+    lda joy1 + 1
     bit #$10  ; Start
     beq JoypadSelect  ; Button not pressed.
     lda backgroundRed
@@ -371,7 +393,7 @@ JoypadStart:
     inc backgroundRed
 
 JoypadSelect:
-    lda JOY1H
+    lda joy1 + 1
     bit #$20  ; Select
     beq JoypadY  ; Button not pressed.
     lda backgroundRed
@@ -380,7 +402,7 @@ JoypadSelect:
     dec backgroundRed
 
 JoypadY:
-    lda JOY1H
+    lda joy1 + 1
     bit #$40  ; Y
     beq JoypadX  ; Button not pressed.
     lda backgroundGreen
@@ -389,7 +411,7 @@ JoypadY:
     dec backgroundGreen
 
 JoypadX:
-    lda JOY1L
+    lda joy1
     bit #$40  ; X
     beq JoypadL  ; Button not pressed.
     lda backgroundGreen
@@ -398,7 +420,7 @@ JoypadX:
     inc backgroundGreen
 
 JoypadL:
-    lda JOY1L
+    lda joy1
     bit #$20  ; L
     beq JoypadR  ; Button not pressed.
     lda backgroundBlue
@@ -407,7 +429,7 @@ JoypadL:
     dec backgroundBlue
 
 JoypadR:
-    lda JOY1L
+    lda joy1
     bit #$10  ; R
     beq JoypadB  ; Button not pressed.
     lda backgroundBlue
@@ -416,7 +438,7 @@ JoypadR:
     inc backgroundBlue
 
 JoypadB:
-    lda JOY1H
+    lda joy1 + 1
     bit #$80  ; B
     beq JoypadDone
     jsr MaybeShoot
