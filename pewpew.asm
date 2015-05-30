@@ -510,8 +510,7 @@ UpdateWorld:
     ; Set priority bits so that the sprite is drawn in front.
     lda #%00110000
     sta $0103
-    ; Clear x-MSB so that the sprite is displayed.
-    lda #%01000000
+    lda #%11000000  ; Enable large sprite.
     sta spriteTableScratchStart
 
     ; Move shot coords and copy into sprite table.
@@ -548,7 +547,7 @@ UpdateShot:
     sta $0112, X
 
     ; Update secondary sprite table.
-    lda #%01000000
+    lda #%11000000
     sta spriteTableScratchStart + 4, Y
     jmp ShotDone
 
@@ -593,6 +592,10 @@ FillSecondarySpriteTable:
     ; This function is meant to be called after UpdateWorld, and packs those
     ; bytes into the actual bitfield that the OAM wants for the secondary
     ; sprite table.
+    ;
+    ; The expected format of every byte in the scratch sprite table is:
+    ; sx------    s = size (0 = small, 1 = large)
+    ;             x = flipped high x-coordinate (so 1 behaves like "enable").
     ldx #0  ; Index into input table.
     ldy #0  ; Index into output table.
 -
@@ -608,10 +611,8 @@ FillSecondarySpriteTable:
         sta $00
         inx
     .endr
-    ; TODO(mcmillen): change the semantics of the scratch table so that
-    ; "1" = "big"?
     lda $00
-    eor #$FF
+    eor #%01010101
     sta spriteTable2Start, Y
     iny
     cpx #numSprites
