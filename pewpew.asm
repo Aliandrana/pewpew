@@ -466,7 +466,7 @@ MaybeShoot:
     sta 1, X
     lda playerY
     sta 2, X
-    lda #2  ; x-velocity.
+    lda #6  ; x-velocity.
     sta 3, X
     ; Update nextShotPtr.
     .rept shotSize
@@ -479,7 +479,7 @@ MaybeShoot:
     stx nextShotPtr
 
     ; Set cooldown timer.
-    lda #8
+    lda #10
     sta shotCooldown
 ++
     rts
