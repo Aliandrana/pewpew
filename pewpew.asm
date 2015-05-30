@@ -100,12 +100,6 @@ Start:
     SetXY16Bit
     SetA8Bit
 
-    ; Store zeroes to the controller status registers.
-    ; TODO(mcmillen): is this needed? I think the system will overwrite these
-    ; automatically.
-    stz joy1
-    stz joy1 + 1
-
     jsr LoadPaletteAndTileData
     jsr InitializeSpriteTables
     jsr InitializeWorld
