@@ -322,7 +322,7 @@ MainLoop:
     lda #%00000001  ; Disable NMI interrupt while processing.
     sta NMITIMEN
 
-    jsr JoypadDebug
+    jsr JoypadRead
     jsr JoypadHandler
     jsr UpdateWorld
     jsr FillSecondarySpriteTable
@@ -331,8 +331,12 @@ MainLoop:
 
 
 
-JoypadDebug:
-    ; Load joypad registers into RAM for easier inspection.
+JoypadRead:
+    ; Load joypad registers into RAM for easy inspection & manipulation.
+-
+    lda HVBJOY
+    bit #$01  ; If auto-joypad read is happening, loop.
+    bne -
     ldx JOY1L
     stx joy1
     ldx JOY2L

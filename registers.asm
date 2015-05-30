@@ -145,6 +145,20 @@
 ; Each bit that's set enables one channel: 76543210
 .define DMAENABLE $420B
 
+; $4212: VBlank/HBlank/Joypad status [HVBJOY]
+; vh-----a
+; v    = V-Blank Flag. If we're currently in V-Blank, this flag is set,
+;     otherwise it is clear. The setting seems to occur at H Counter
+;     about $16-$17 when V Counter is $E1, and the clearing at about $1E
+;     with V Counter 0.
+; h    = H-Blank Flag. If we're currently in H-Blank, this flag is set,
+;     otherwise it is clear. The setting seems to occur at H Counter
+;     about $121-$122, and the clearing at about $12-$18.
+; a    = Auto-Joypad Status. This is set while Auto-Joypad Read is in
+;     progress, and cleared when complete. It typically turns on at
+;     the start of V-Blank, and completes 3 scanlines later.
+.define HVBJOY $4212
+
 ; $4218: Joypad #1 status [JOY1L]
 ; Format: AXLR0000
 .define JOY1L $4218
