@@ -22,17 +22,19 @@
 ; http://www.dforce3000.de/pub/doc/anomie_regs.txt
 
 ; $2100: Screen display initialization [INIDISP]
-; Format: x000bbbb
-; x: 0 = screen on, 1 = screen off, bbbb: Brightness ($0-$F)
+; x000bbbb    x: 0 = screen on, 1 = screen off, bbbb: Brightness ($0-$F)
 .define INIDISP $2100
 
 ; $2101: OAM size [OBSEL]
+; The upper 3 bits select the size of "small" and "large" sprites.
 ; sssnnbbb    s: 000 =  8x8  or 16x16.
 ;                001 =  8x8  or 32x32.
 ;                010 =  8x8  or 64x64.
 ;                011 = 16x16 or 32x32.
 ;                100 = 16x16 or 64x64.
 ;                101 = 32x32 or 64x64.
+;                110 = 16x32 or 32x64 ('undocumented')
+;                111 = 16x32 or 32x32 ('undocumented')
 ;             n: Name selection (upper 4k word addr).
 ;             b: Base selection (8k word seg. addr).
 .define OAMSIZE $2101
@@ -50,7 +52,7 @@
 ;             d: BG1 tile size (0=8x8, 1=16x16).
 ;             e: Highest priority for BG3 in MODE 1.
 ;             f: MODE definition.
-.define SCREENMODE $2105
+.define BGMODE $2105
 
 ; $2107-210A: BG1-4 tilemap registers [BGxSC]
 ; xxxxxxab    x: Base address (in VRAM, shifted left 11 bits).

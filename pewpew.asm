@@ -112,7 +112,7 @@ Start:
 
     ; Set screen mode: 16x16 tiles for backgrounds, mode 1.
     lda #%11000001
-    sta SCREENMODE
+    sta BGMODE
 
     ; Set sprite size to 16x16 (small) and 32x32 (large).
     lda #%01100000
