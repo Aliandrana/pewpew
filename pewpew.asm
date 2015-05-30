@@ -16,8 +16,9 @@
 ; 0022: shot cooldown timer.
 ; 0023-0024: index of next shot.
 ; [gap]
-; 0030-003F: {enable, x, y, unused} per shot (max 4 shots).
-;
+; 0030-008F: {enable, x, y, x-velocity} per shot (max 16 shots).
+;            I've reserved room so that these can be 6 bytes eventually.
+; [gap]
 ; Sprite table buffers -- copied each frame to OAM during VBlank, using DMA.
 ; 0100-02FF: table 1 (4 bytes each: x/y coord, tile #, flip/priority/palette)
 ; 0300-031F: table 2 (2 bits each: high x-coord bit, size)
@@ -33,7 +34,8 @@
 .define shotCooldown $22
 .define nextShotPtr $23
 .define shotArray $30
-.define shotArrayLength 4
+.define shotArrayLength 16
+.define shotSize 4
 
 ; TODO(mcmillen): verify that we can relocate these without messing things up.
 .define numSprites 128
@@ -346,7 +348,6 @@ JoypadRead:
 
 
 JoypadHandler:
-; TODO(mcmillen): handle joystick using 16-bit loads?
 JoypadUp:
     lda joy1 + 1
     bit #$08  ; Up
@@ -465,18 +466,20 @@ MaybeShoot:
     sta 1, X
     lda playerY
     sta 2, X
+    lda #2  ; x-velocity.
+    sta 3, X
     ; Update nextShotPtr.
-    .rept 4
+    .rept shotSize
         inx
     .endr
-    cpx #(shotArray + shotArrayLength * 4)
+    cpx #(shotArray + shotArrayLength * shotSize)
     bne +
     ldx #shotArray
 +
     stx nextShotPtr
 
     ; Set cooldown timer.
-    lda #16
+    lda #8
     sta shotCooldown
 ++
     rts
@@ -531,13 +534,17 @@ UpdateShot:
     bne DisableShot
     ; Add to the x-coordinate. If the carry bit is set, we went off the edge
     ; of the screen, so disable the shot.
+    lda shotArray + 3, X  ; x-velocity.
+    sta $01
     lda shotArray + 1, X
     clc
-    adc #6  ; x velocity
+    adc $01
     bcs DisableShot
     sta shotArray + 1, X  ; Store new x-coord.
 
     ; Set up shot in sprite table.
+    ; TODO(mcmillen): we use X for indexing both into the shots table and the
+    ; sprites table, which is a problem as it assumes shotSize = 4.
     lda shotArray + 1, X  ; x
     ; TODO(mcmillen): document that shots start at $110?
     sta $0110, X
@@ -559,11 +566,11 @@ DisableShot:
 ShotDone:
     ; TODO(mcmillen): in places where we .rept inx (etc), is it faster to use
     ; actual addition?
-    .rept 4
+    .rept shotSize
         inx
     .endr
     iny
-    cpx #(4 * shotArrayLength)
+    cpx #(shotArrayLength * shotSize)
     bne UpdateShot
 
     ; Make the background scroll. Horizontal over time; vertical depending on
