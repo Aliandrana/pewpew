@@ -467,6 +467,7 @@ MaybeShootDone:
 
 UpdateWorld:
     jsr UpdateShotCooldown
+    jsr SpawnEnemyShots
     jsr UpdateShotPositions
     jsr UpdateBackgroundScroll
     rts
@@ -481,6 +482,38 @@ UpdateShotCooldown:
     dec A
     sta shotCooldown
 +
+    rts
+
+
+
+SpawnEnemyShots:
+    lda vBlankCounter
+    bit #%00111111
+    beq +
+    rts
++
+    lda #8  ; Sprite number.
+    sta enemyShotArray
+
+    lda #254
+    sta enemyShotArray + 1  ; x.
+
+    lda #((224 - 32) / 2)
+    and #%01111111
+    sta enemyShotArray + 2  ; y.
+
+    lda #-6
+    sta enemyShotArray + 3  ; x-velocity.
+
+    GetRandomByte
+    and #%00000111  ; [0, 7]
+    clc
+    adc #-3  ; [-3, 4]
+    cmp #4
+    bne +
+    lda #0  ; [-3, 3] with 2x chance of zero.
++
+    sta enemyShotArray + 4  ; y-velocity.
     rts
 
 
@@ -553,7 +586,7 @@ ShotDone:
     .rept shotSize
         inx
     .endr
-    cpx #(playerShotArrayLength * shotSize)
+    cpx #(playerShotArrayLength * enemyShotArrayLength * shotSize)
     bne UpdateShot
 
     rts
@@ -653,7 +686,7 @@ UpdateSprites:
     .rept shotSize
         iny
     .endr
-    cpy #(playerShotArrayLength * shotSize)
+    cpy #((playerShotArrayLength + enemyShotArrayLength) * shotSize)
     bne -
 
     ; Now clear out the unused entries in the sprite table.
