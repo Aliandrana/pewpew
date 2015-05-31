@@ -464,13 +464,14 @@ MaybeShoot:
     beq MaybeShootDone
     jmp -
 +
-    ; Enable shot; set its position to player position.
+    ; Enable shot; set its position based on player position.
     ; TODO(mcmillen): it might be easier/faster to keep N arrays: one for each
     ; field of shot (shotSpriteArray, shotXArray, shotYArray, ...)
     lda #8  ; Sprite number.
     sta 0, X
 
     lda playerX
+    adc #20
     sta 1, X
 
     lda playerY
@@ -484,12 +485,12 @@ MaybeShoot:
     lda nextShotState
     cmp #1
     beq +
-    lda #3
+    lda #2
     sta 4, X
     inc nextShotState
     jmp ++
 +
-    lda #-3
+    lda #-2
     sta 4, X
     dec nextShotState
 ++
@@ -660,6 +661,16 @@ UpdateSprites:
     cpy #(shotArrayLength * shotSize)
     bne -
 
+    ; Now clear out the unused entries in the sprite table.
+-
+    cpx #spriteTable1Size
+    beq +
+    lda #1
+    sta spriteTableStart, X
+    .rept 4
+        inx
+    .endr
++
     rts
 
 
