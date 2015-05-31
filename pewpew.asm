@@ -15,6 +15,7 @@
 ; 0020-0021: (x, y) coordinates of player.
 ; 0022: shot cooldown timer.
 ; 0023-0024: index of next shot.
+; 0025: next-shot state.
 ; [gap]
 ; 0030-008F: {sprite, x, y, x-velocity, y-velocity, unused} per shot.
 ;            If sprite is 0, the shot is disabled.
@@ -33,6 +34,7 @@
 .define playerY $21
 .define shotCooldown $22
 .define nextShotPtr $23
+.define nextShotState $25
 .define shotArray $30
 .define shotArrayLength 16
 .define shotSize 6
@@ -452,7 +454,7 @@ MaybeShoot:
     ; If the cooldown timer is non-zero, don't shoot.
     lda shotCooldown
     cmp #0
-    bne ++
+    bne MaybeShootDone
     ldx nextShotPtr
     ; Enable shot; set its position to player position.
     ; TODO(mcmillen): loop through the array until we find an unused shot.
@@ -466,9 +468,18 @@ MaybeShoot:
     sta 2, X
     lda #6  ; x-velocity.
     sta 3, X
-    lda #-3  ; y-velocity.
+    lda nextShotState
+    cmp #1
+    beq +
+    lda #3
     sta 4, X
-    ; Update nextShotPtr.
+    inc nextShotState
+    jmp ++
++
+    lda #-3
+    sta 4, X
+    dec nextShotState
+++
     .rept shotSize
         inx
     .endr
@@ -481,7 +492,7 @@ MaybeShoot:
     ; Set cooldown timer.
     lda #10
     sta shotCooldown
-++
+MaybeShootDone:
     rts
 
 
