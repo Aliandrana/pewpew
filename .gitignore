@@ -1,4 +1,5 @@
 *.smc
+*.sfc
 .wla*
 *.pic
 *.clr
