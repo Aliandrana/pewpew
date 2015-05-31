@@ -16,7 +16,8 @@
 ; 0022: shot cooldown timer.
 ; 0023: next-shot state.
 ; [gap]
-; 0030-008F: {sprite, x, y, x-velocity, y-velocity, unused} per shot.
+; 0030-003F: (x, y) velocities of each of the 8 possible shot states.
+; 0040-009F: {sprite, x, y, x-velocity, y-velocity, unused} per shot.
 ;            If sprite is 0, the shot is disabled.
 ; [gap]
 ; Sprite table buffers -- copied each frame to OAM during VBlank, using DMA.
@@ -34,7 +35,8 @@
 .define playerY $21
 .define shotCooldown $22
 .define nextShotState $23
-.define shotArray $30
+.define shotVelocityTable $30
+.define shotArray $40
 .define shotArrayLength 16
 .define shotSize 6
 
@@ -101,6 +103,7 @@ Start:
     SetA8Bit
 
     jsr LoadPaletteAndTileData
+    ; TODO(mcmillen): do we even need to init the sprite tables any more?
     jsr InitializeSpriteTables
     jsr InitializeWorld
 
@@ -304,6 +307,47 @@ InitializeWorld:
     lda #((224 - 32) / 2)
     sta playerY
 
+    ; (x-velocity, y-velocity) of 4 different player shot patterns.
+    lda #6
+    sta shotVelocityTable
+    lda #0
+    sta shotVelocityTable + 1
+
+    lda #3
+    sta shotVelocityTable + 2
+    lda #3
+    sta shotVelocityTable + 3
+
+    lda #0
+    sta shotVelocityTable + 4
+    lda #6
+    sta shotVelocityTable + 5
+
+    lda #-3
+    sta shotVelocityTable + 6
+    lda #3
+    sta shotVelocityTable + 7
+
+    lda #-6
+    sta shotVelocityTable + 8
+    lda #0
+    sta shotVelocityTable + 9
+
+    lda #-3
+    sta shotVelocityTable + 10
+    lda #-3
+    sta shotVelocityTable + 11
+
+    lda #0
+    sta shotVelocityTable + 12
+    lda #-6
+    sta shotVelocityTable + 13
+
+    lda #3
+    sta shotVelocityTable + 14
+    lda #-3
+    sta shotVelocityTable + 15
+
     rts
 
 
@@ -471,32 +515,37 @@ MaybeShoot:
     sta 0, X
 
     lda playerX
+    clc
     adc #20
     sta 1, X
 
     lda playerY
     sta 2, X
 
-    ; x-velocity.
-    lda #6
-    sta 3, X
-
-    ; y-velocity.
+    ; Get x- and y-velocity out of shotVelocityTable.
     lda nextShotState
-    cmp #1
+    and #%00000111  ; 8 possibilities.
+    ldy #0
+-
+    cmp #0
     beq +
-    lda #2
-    sta 4, X
-    inc nextShotState
-    jmp ++
+    .rept 2
+        iny
+    .endr
+    dec A
+    bra -
 +
-    lda #-2
+    inc nextShotState
+
+    ; x-velocity.
+    lda shotVelocityTable, Y
+    sta 3, X
+    ; y-velocity.
+    lda shotVelocityTable + 1, Y
     sta 4, X
-    dec nextShotState
-++
 
     ; Set cooldown timer.
-    lda #10
+    lda #8
     sta shotCooldown
 MaybeShootDone:
     rts
@@ -549,6 +598,7 @@ UpdateShotY:
     bne UpdateShotWithNegativeYVelocity
 
     lda shotArray + 2, X
+    clc
     adc $00
     cmp #224
     bcs DisableShot
@@ -563,8 +613,8 @@ UpdateShotWithNegativeYVelocity:
     sta shotArray + 2, X  ; save the result,
     jmp ShotDone  ; and we know it shouldn't be reaped.
 +
+    clc
     adc $00
-    dec A  ; Two's complement means that we need to -1 again in this case.
     cmp #224
     bcc DisableShot  ; If it's now wrapped around, reap it.
     sta shotArray + 2, X
