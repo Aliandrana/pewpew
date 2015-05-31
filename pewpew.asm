@@ -492,7 +492,7 @@ SpawnEnemyShots:
     beq +
     rts
 +
-    lda #8  ; Sprite number.
+    lda #12  ; Sprite number.
     sta enemyShotArray
 
     lda #254
