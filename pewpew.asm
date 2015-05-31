@@ -14,8 +14,7 @@
 ; [gap]
 ; 0020-0021: (x, y) coordinates of player.
 ; 0022: shot cooldown timer.
-; 0023-0024: index of next shot.
-; 0025: next-shot state.
+; 0023: next-shot state.
 ; [gap]
 ; 0030-008F: {sprite, x, y, x-velocity, y-velocity, unused} per shot.
 ;            If sprite is 0, the shot is disabled.
@@ -33,8 +32,7 @@
 .define playerX $20
 .define playerY $21
 .define shotCooldown $22
-.define nextShotPtr $23
-.define nextShotState $25
+.define nextShotState $23
 .define shotArray $30
 .define shotArrayLength 16
 .define shotSize 6
@@ -306,9 +304,6 @@ InitializeWorld:
     lda #((224 - 32) / 2)
     sta playerY
 
-    ; Next shot pointer starts at the beginning.
-    ldx #shotArray
-    stx nextShotPtr
     rts
 
 
@@ -455,9 +450,21 @@ MaybeShoot:
     lda shotCooldown
     cmp #0
     bne MaybeShootDone
-    ldx nextShotPtr
+    ; Find the first empty spot in the shots array.
+    ldx #shotArray
+-
+    lda 0, X
+    cmp #0
+    beq +
+    .rept shotSize
+        inx
+    .endr
+    ; If we went all the way to the end, bail out.
+    cpx #(shotArray + shotArrayLength * shotSize)
+    beq MaybeShootDone
+    jmp -
++
     ; Enable shot; set its position to player position.
-    ; TODO(mcmillen): loop through the array until we find an unused shot.
     ; TODO(mcmillen): it might be easier/faster to keep N arrays: one for each
     ; field of shot (shotSpriteArray, shotXArray, shotYArray, ...)
     lda #8  ; Sprite number.
@@ -466,28 +473,20 @@ MaybeShoot:
     sta 1, X
     lda playerY
     sta 2, X
-    lda #6  ; x-velocity.
+    lda #3  ; x-velocity.
     sta 3, X
     lda nextShotState
     cmp #1
     beq +
-    lda #3
+    lda #1
     sta 4, X
     inc nextShotState
     jmp ++
 +
-    lda #-3
+    lda #-1
     sta 4, X
     dec nextShotState
 ++
-    .rept shotSize
-        inx
-    .endr
-    cpx #(shotArray + shotArrayLength * shotSize)
-    bne +
-    ldx #shotArray
-+
-    stx nextShotPtr
 
     ; Set cooldown timer.
     lda #10
