@@ -20,8 +20,9 @@
 ;            If sprite is 0, the shot is disabled.
 ; [gap]
 ; Sprite table buffers -- copied each frame to OAM during VBlank, using DMA.
-; 0100-02FF: table 1 (4 bytes each: x/y coord, tile #, flip/priority/palette)
-; 0300-031F: table 2 (2 bits each: high x-coord bit, size)
+; 1000-11FF: table 1 (4 bytes each: x/y coord, tile #, flip/priority/palette)
+; 1200-121F: table 2 (2 bits each: high x-coord bit, size)
+; 1220-12A0: scratch table. One byte per sprite for high x-coord & size.
 .define joy1 $10
 .define joy2 $12
 .define vBlankCounter $14
@@ -37,13 +38,12 @@
 .define shotArrayLength 16
 .define shotSize 6
 
-; TODO(mcmillen): verify that we can relocate these without messing things up.
 .define numSprites 128
-.define spriteTableStart $100
+.define spriteTableStart $1000
 .define spriteTable1Size $200
-.define spriteTable2Start $300
+.define spriteTable2Start $1200
 .define spriteTableSize $220
-.define spriteTableScratchStart $320
+.define spriteTableScratchStart $1220
 
 
 
