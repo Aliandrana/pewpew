@@ -473,17 +473,17 @@ MaybeShoot:
     sta 1, X
     lda playerY
     sta 2, X
-    lda #3  ; x-velocity.
+    lda #6  ; x-velocity.
     sta 3, X
     lda nextShotState
     cmp #1
     beq +
-    lda #1
+    lda #3
     sta 4, X
     inc nextShotState
     jmp ++
 +
-    lda #-1
+    lda #-3
     sta 4, X
     dec nextShotState
 ++
@@ -544,6 +544,7 @@ UpdateShotWithNegativeYVelocity:
     jmp ShotDone  ; and we know it shouldn't be reaped.
 +
     adc $00
+    dec A  ; Two's complement means that we need to -1 again in this case.
     cmp #224
     bcc DisableShot  ; If it's now wrapped around, reap it.
     sta shotArray + 2, X
