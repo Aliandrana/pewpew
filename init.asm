@@ -2,7 +2,7 @@
 ;-  Standard SNES initialization routine, originally by Neviksti
 ;------------------------------------------------------------------------
 
-.MACRO InitializeSNES
+.MACRO InitSNES
   sei                     ;disable interrupts
   clc                     ;switch to native mode
   xce

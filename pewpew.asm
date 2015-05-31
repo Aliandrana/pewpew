@@ -1,51 +1,7 @@
 .INCLUDE "header.asm"
 .INCLUDE "init.asm"
 .INCLUDE "registers.asm"
-
-
-
-; Memory layout:
-; 0000-000F: scratch space for functions.
-; 0010-0011: controller state of joypad #1.
-; 0012-0013: controller state of joypad #2.
-; 0014-0016: 24-bit counter of vblanks.
-; 0017-0019: RGB color values to use for background color, from [0-31].
-; 001A-001B: 16-bit pointer to next random byte.
-; [gap]
-; 0020-0021: (x, y) coordinates of player.
-; 0022: shot cooldown timer.
-; 0023: next-shot state.
-; [gap]
-; 0030-003F: (x, y) velocities of each of the 8 possible shot states.
-; 0040-009F: {sprite, x, y, x-velocity, y-velocity, unused} per shot.
-;            If sprite is 0, the shot is disabled.
-; [gap]
-; Sprite table buffers -- copied each frame to OAM during VBlank, using DMA.
-; 1000-11FF: table 1 (4 bytes each: x/y coord, tile #, flip/priority/palette)
-; 1200-121F: table 2 (2 bits each: high x-coord bit, size)
-; 1220-12A0: scratch table. One byte per sprite for high x-coord & size.
-.define joy1 $10
-.define joy2 $12
-.define vBlankCounter $14
-.define backgroundRed $17
-.define backgroundGreen $18
-.define backgroundBlue $19
-.define randomBytePtr $1A
-.define playerX $20
-.define playerY $21
-.define shotCooldown $22
-.define nextShotState $23
-.define shotVelocityTable $30
-.define shotArray $40
-.define shotArrayLength 16
-.define shotSize 6
-
-.define numSprites 128
-.define spriteTableStart $1000
-.define spriteTable1Size $200
-.define spriteTable2Start $1200
-.define spriteTableSize $220
-.define spriteTableScratchStart $1220
+.INCLUDE "memory.asm"
 
 
 
@@ -94,7 +50,7 @@ rep #%00010000  ; 16-bit X/Y.
 
 
 Start:
-    InitializeSNES
+    InitSNES
 
     ; By default we assume 16-bit X/Y and 8-bit A.
     ; If any code wants to change this, it's expected to do so itself,
@@ -103,7 +59,7 @@ Start:
     SetA8Bit
 
     jsr LoadPaletteAndTileData
-    jsr InitializeWorld
+    jsr InitWorld
 
     ; Set screen mode: 16x16 tiles for backgrounds, mode 1.
     lda #%11000001
@@ -253,7 +209,7 @@ LoadPaletteAndTileData:
 
 
 
-InitializeWorld:
+InitWorld:
     ; Start the background color as a dark blue.
     lda #4
     sta backgroundBlue
@@ -452,7 +408,7 @@ MaybeShoot:
     cmp #0
     bne MaybeShootDone
     ; Find the first empty spot in the shots array.
-    ldx #shotArray
+    ldx #playerShotArray
 -
     lda 0, X
     cmp #0
@@ -461,7 +417,7 @@ MaybeShoot:
         inx
     .endr
     ; If we went all the way to the end, bail out.
-    cpx #(shotArray + shotArrayLength * shotSize)
+    cpx #(playerShotArray + playerShotArrayLength * shotSize)
     beq MaybeShootDone
     jmp -
 +
@@ -510,6 +466,14 @@ MaybeShootDone:
 
 
 UpdateWorld:
+    jsr UpdateShotCooldown
+    jsr UpdateShotPositions
+    jsr UpdateBackgroundScroll
+    rts
+
+
+
+UpdateShotCooldown:
     ; Update shot cooldown.
     lda shotCooldown
     cmp #0
@@ -517,68 +481,72 @@ UpdateWorld:
     dec A
     sta shotCooldown
 +
+    rts
 
+
+
+UpdateShotPositions:
     ldx #0
-    ; Update shot position.
-UpdateShot:
-    lda shotArray, X
+
+UpdateShot:  ; Updates position of one shot.
+    lda playerShotArray, X
     cmp #0
     beq ShotDone
     ; Add to the x-coordinate. If the carry bit is set, we went off the edge
     ; of the screen, so disable the shot.
-    lda shotArray + 3, X  ; x-velocity.
+    lda playerShotArray + 3, X  ; x-velocity.
     sta $00
     bit #%10000000  ; Check whether the velocity is negative.
     bne UpdateShotWithNegativeXVelocity
-    lda shotArray + 1, X
+    lda playerShotArray + 1, X
     clc
     adc $00
     bcs DisableShot
-    sta shotArray + 1, X  ; Store new x-coord.
+    sta playerShotArray + 1, X  ; Store new x-coord.
     jmp UpdateShotY
 
 UpdateShotWithNegativeXVelocity:
     ; TODO(mcmillen): wrap sprites when they go negative here, like we do
     ; with y-velocities.
-    lda shotArray + 1, X  ; Current x.
+    lda playerShotArray + 1, X  ; Current x.
     clc
     adc $00
     bcc DisableShot
-    sta shotArray + 1, X
+    sta playerShotArray + 1, X
     jmp UpdateShotY
 
 UpdateShotY:
     ; Add to the y-coordinate.
-    lda shotArray + 4, X  ; y-velocity.
+    lda playerShotArray + 4, X  ; y-velocity.
     sta $00
     bit #%10000000  ; Check whether the velocity is negative.
     bne UpdateShotWithNegativeYVelocity
 
-    lda shotArray + 2, X
+    lda playerShotArray + 2, X
     clc
     adc $00
     cmp #224
     bcs DisableShot
-    sta shotArray + 2, X  ; Store new y-coord.
+    sta playerShotArray + 2, X  ; Store new y-coord.
     jmp ShotDone
 
 UpdateShotWithNegativeYVelocity:
-    lda shotArray + 2, X  ; Current y.
+    lda playerShotArray + 2, X  ; Current y.
     cmp #224
     bcs +  ; If the shot was "off the top" before moving, maybe we'll reap it.
     adc $00  ; Otherwise, just update it,
-    sta shotArray + 2, X  ; save the result,
+    sta playerShotArray + 2, X  ; save the result,
     jmp ShotDone  ; and we know it shouldn't be reaped.
 +
     clc
     adc $00
     cmp #224
     bcc DisableShot  ; If it's now wrapped around, reap it.
-    sta shotArray + 2, X
+    sta playerShotArray + 2, X
     jmp ShotDone
 
 DisableShot:
-    stz shotArray, X
+    stz playerShotArray, X
 
 ShotDone:
     ; TODO(mcmillen): in places where we .rept inx (etc), is it faster to use
@@ -586,9 +554,14 @@ ShotDone:
     .rept shotSize
         inx
     .endr
-    cpx #(shotArrayLength * shotSize)
+    cpx #(playerShotArrayLength * shotSize)
     bne UpdateShot
 
+    rts
+
+
+
+UpdateBackgroundScroll:
     ; Make the background scroll. Horizontal over time; vertical depending on
     ; player's y-coordinate.
     lda vBlankCounter
@@ -654,25 +627,25 @@ UpdateSprites:
 
     ; Now add shots.
     sty $00  ; Save sprite table 2 index.
-    ldy #0  ; Index into shotArray.
+    ldy #0  ; Index into playerShotArray.
 -
-    lda shotArray, Y
+    lda playerShotArray, Y
     cmp #0
     beq +  ; If not enabled, skip to next shot.
     ; Update sprite table 1.
     sta spriteTableStart + 2, X  ; sprite number
-    lda shotArray + 1, Y
+    lda playerShotArray + 1, Y
     sta spriteTableStart, X  ; x
-    lda shotArray + 2, Y
+    lda playerShotArray + 2, Y
     sta spriteTableStart + 1, X  ; y
     ; Update secondary sprite table.
-    phy  ; Save shotArray index.
+    phy  ; Save playerShotArray index.
     ldy $00
     lda #%11000000
     sta spriteTableScratchStart, Y
     iny
     sty $00
-    ply  ; Restore shotArrayIndex.
+    ply  ; Restore playerShotArrayIndex.
 
     .rept 4
         inx
@@ -681,7 +654,7 @@ UpdateSprites:
     .rept shotSize
         iny
     .endr
-    cpy #(shotArrayLength * shotSize)
+    cpy #(playerShotArrayLength * shotSize)
     bne -
 
     ; Now clear out the unused entries in the sprite table.
