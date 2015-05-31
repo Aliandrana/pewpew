@@ -469,12 +469,18 @@ MaybeShoot:
     ; field of shot (shotSpriteArray, shotXArray, shotYArray, ...)
     lda #8  ; Sprite number.
     sta 0, X
+
     lda playerX
     sta 1, X
+
     lda playerY
     sta 2, X
-    lda #6  ; x-velocity.
+
+    ; x-velocity.
+    lda #6
     sta 3, X
+
+    ; y-velocity.
     lda nextShotState
     cmp #1
     beq +
@@ -515,11 +521,24 @@ UpdateShot:
     ; of the screen, so disable the shot.
     lda shotArray + 3, X  ; x-velocity.
     sta $00
+    bit #%10000000  ; Check whether the velocity is negative.
+    bne UpdateShotWithNegativeXVelocity
     lda shotArray + 1, X
     clc
     adc $00
     bcs DisableShot
     sta shotArray + 1, X  ; Store new x-coord.
+    jmp UpdateShotY
+
+UpdateShotWithNegativeXVelocity:
+    ; TODO(mcmillen): wrap sprites when they go negative here, like we do
+    ; with y-velocities.
+    lda shotArray + 1, X  ; Current x.
+    clc
+    adc $00
+    bcc DisableShot
+    sta shotArray + 1, X
+    jmp UpdateShotY
 
 UpdateShotY:
     ; Add to the y-coordinate.
@@ -536,7 +555,7 @@ UpdateShotY:
     jmp ShotDone
 
 UpdateShotWithNegativeYVelocity:
-    lda shotArray + 2, X  ; Current Y.
+    lda shotArray + 2, X  ; Current y.
     cmp #224
     bcs +  ; If the shot was "off the top" before moving, maybe we'll reap it.
     adc $00  ; Otherwise, just update it,
