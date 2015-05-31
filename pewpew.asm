@@ -77,9 +77,9 @@ rep #%00010000  ; 16-bit X/Y.
     lda $028000, X  ; $028000: beginning of ROM bank 2.
     inx
     cpx #$8000  ; This is the size of the entire ROM bank.
-    bne +
+    bne +++
     ldx #0
-+
++++
     stx randomBytePtr
 .ENDM
 
@@ -466,7 +466,7 @@ MaybeShoot:
     sta 2, X
     lda #6  ; x-velocity.
     sta 3, X
-    lda #0  ; y-velocity.
+    lda #-3  ; y-velocity.
     sta 4, X
     ; Update nextShotPtr.
     .rept shotSize
@@ -511,16 +511,32 @@ UpdateShot:
     bcs DisableShot
     sta shotArray + 1, X  ; Store new x-coord.
 
+UpdateShotY:
     ; Add to the y-coordinate.
     lda shotArray + 4, X  ; y-velocity.
     sta $00
+    bit #%10000000  ; Check whether the velocity is negative.
+    bne UpdateShotWithNegativeYVelocity
+
     lda shotArray + 2, X
-    ; no need for clc - if it was set above, we already jumped to DisableShot.
     adc $00
     cmp #224
     bcs DisableShot
     sta shotArray + 2, X  ; Store new y-coord.
+    jmp ShotDone
 
+UpdateShotWithNegativeYVelocity:
+    lda shotArray + 2, X  ; Current Y.
+    cmp #224
+    bcs +  ; If the shot was "off the top" before moving, maybe we'll reap it.
+    adc $00  ; Otherwise, just update it,
+    sta shotArray + 2, X  ; save the result,
+    jmp ShotDone  ; and we know it shouldn't be reaped.
++
+    adc $00
+    cmp #224
+    bcc DisableShot  ; If it's now wrapped around, reap it.
+    sta shotArray + 2, X
     jmp ShotDone
 
 DisableShot:
