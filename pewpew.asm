@@ -16,8 +16,8 @@
 ; 0022: shot cooldown timer.
 ; 0023-0024: index of next shot.
 ; [gap]
-; 0030-008F: {enable, x, y, x-velocity} per shot (max 16 shots).
-;            I've reserved room so that these can be 6 bytes eventually.
+; 0030-008F: {sprite, x, y, x-velocity, y-velocity, unused} per shot.
+;            If sprite is 0, the shot is disabled.
 ; [gap]
 ; Sprite table buffers -- copied each frame to OAM during VBlank, using DMA.
 ; 0100-02FF: table 1 (4 bytes each: x/y coord, tile #, flip/priority/palette)
@@ -35,7 +35,7 @@
 .define nextShotPtr $23
 .define shotArray $30
 .define shotArrayLength 16
-.define shotSize 4
+.define shotSize 6
 
 ; TODO(mcmillen): verify that we can relocate these without messing things up.
 .define numSprites 128
@@ -321,6 +321,7 @@ MainLoop:
     jsr JoypadRead
     jsr JoypadHandler
     jsr UpdateWorld
+    jsr UpdateSprites
     jsr FillSecondarySpriteTable
     jsr SetBackgroundColor
     jmp MainLoop
@@ -454,7 +455,10 @@ MaybeShoot:
     bne ++
     ldx nextShotPtr
     ; Enable shot; set its position to player position.
-    lda #1
+    ; TODO(mcmillen): loop through the array until we find an unused shot.
+    ; TODO(mcmillen): it might be easier/faster to keep N arrays: one for each
+    ; field of shot (shotSpriteArray, shotXArray, shotYArray, ...)
+    lda #8  ; Sprite number.
     sta 0, X
     lda playerX
     sta 1, X
@@ -462,6 +466,8 @@ MaybeShoot:
     sta 2, X
     lda #6  ; x-velocity.
     sta 3, X
+    lda #0  ; y-velocity.
+    sta 4, X
     ; Update nextShotPtr.
     .rept shotSize
         inx
@@ -481,80 +487,44 @@ MaybeShoot:
 
 
 UpdateWorld:
-    ; TODO(mcmillen): separate out "update world" from "update sprite table".
-
-    ; Zero out the scratch space for the secondary sprite table.
-    ldx #0
--
-    stz spriteTableScratchStart, X
-    inx
-    cpx #numSprites
-    bne -
-
     ; Update shot cooldown.
     lda shotCooldown
     cmp #0
     beq +
-    dea
+    dec A
     sta shotCooldown
 +
 
-    ; Copy player coords into sprite table.
-    lda playerX
-    sta $0100
-    lda playerY
-    sta $0101
-    ; Set the sprite.
-    lda #0
-    sta $0102
-    ; Set priority bits so that the sprite is drawn in front.
-    lda #%00110000
-    sta $0103
-    lda #%11000000  ; Enable large sprite.
-    sta spriteTableScratchStart
-
-    ; Move shot coords and copy into sprite table.
-    ldx #0  ; Position in main sprite table.
-    ldy #0  ; Position in secondary scratch sprite table.
-    ; To modify sprite table 2 - one bit set for each active shot.
-    ; These bits will be *removed* from the sprite table entry.
-    stz $00
+    ldx #0
+    ; Update shot position.
 UpdateShot:
-    lsr $00
-    lsr $00
     lda shotArray, X
-    cmp #1
-    bne DisableShot
+    cmp #0
+    beq ShotDone
     ; Add to the x-coordinate. If the carry bit is set, we went off the edge
     ; of the screen, so disable the shot.
     lda shotArray + 3, X  ; x-velocity.
-    sta $01
+    sta $00
     lda shotArray + 1, X
     clc
-    adc $01
+    adc $00
     bcs DisableShot
     sta shotArray + 1, X  ; Store new x-coord.
 
-    ; Set up shot in sprite table.
-    ; TODO(mcmillen): we use X for indexing both into the shots table and the
-    ; sprites table, which is a problem as it assumes shotSize = 4.
-    lda shotArray + 1, X  ; x
-    ; TODO(mcmillen): document that shots start at $110?
-    sta $0110, X
-    lda shotArray + 2, X  ; y
-    sta $0111, X
-    lda #8     ; which sprite?
-    sta $0112, X
+    ; Add to the y-coordinate.
+    lda shotArray + 4, X  ; y-velocity.
+    sta $00
+    lda shotArray + 2, X
+    ; no need for clc - if it was set above, we already jumped to DisableShot.
+    adc $00
+    cmp #224
+    bcs DisableShot
+    sta shotArray + 2, X  ; Store new y-coord.
 
-    ; Update secondary sprite table.
-    lda #%11000000
-    sta spriteTableScratchStart + 4, Y
     jmp ShotDone
 
 DisableShot:
-    ; Disable it by setting x-position to 1 and setting the high x-bit.
-    lda #1
-    sta $110, X
+    stz shotArray, X
 
 ShotDone:
     ; TODO(mcmillen): in places where we .rept inx (etc), is it faster to use
@@ -562,7 +532,6 @@ ShotDone:
     .rept shotSize
         inx
     .endr
-    iny
     cpx #(shotArrayLength * shotSize)
     bne UpdateShot
 
@@ -578,6 +547,72 @@ ShotDone:
     .endr
     sta BG3VOFS
     stz BG3VOFS
+
+    rts
+
+
+
+UpdateSprites:
+    ; Zero out the scratch space for the secondary sprite table.
+    ldx #0
+-
+    stz spriteTableScratchStart, X
+    inx
+    cpx #numSprites
+    bne -
+
+    ldx #0  ; Index into sprite table 1.
+    ldy #0  ; Index into sprite table 2.
+
+    ; Copy player coords into sprite table.
+    lda playerX
+    sta spriteTableStart, X
+    lda playerY
+    sta spriteTableStart + 1, X
+    lda #0
+    sta spriteTableStart + 2, X
+    ; Set priority bits so that the sprite is drawn in front.
+    lda #%00110000
+    sta spriteTableStart + 3, X
+    lda #%11000000  ; Enable large sprite.
+    sta spriteTableScratchStart, Y
+
+    .rept 4
+        inx
+    .endr
+    iny
+
+    ; Now add shots.
+    sty $00  ; Save sprite table 2 index.
+    ldy #0  ; Index into shotArray.
+-
+    lda shotArray, Y
+    cmp #0
+    beq +  ; If not enabled, skip to next shot.
+    ; Update sprite table 1.
+    sta spriteTableStart + 2, X  ; sprite number
+    lda shotArray + 1, Y
+    sta spriteTableStart, X  ; x
+    lda shotArray + 2, Y
+    sta spriteTableStart + 1, X  ; y
+    ; Update secondary sprite table.
+    phy  ; Save shotArray index.
+    ldy $00
+    lda #%11000000
+    sta spriteTableScratchStart, Y
+    iny
+    sty $00
+    ply  ; Restore shotArrayIndex.
+
+    .rept 4
+        inx
+    .endr
++
+    .rept shotSize
+        iny
+    .endr
+    cpy #(shotArrayLength * shotSize)
+    bne -
 
     rts
 
