@@ -103,8 +103,6 @@ Start:
     SetA8Bit
 
     jsr LoadPaletteAndTileData
-    ; TODO(mcmillen): do we even need to init the sprite tables any more?
-    jsr InitializeSpriteTables
     jsr InitializeWorld
 
     ; Set screen mode: 16x16 tiles for backgrounds, mode 1.
@@ -251,47 +249,6 @@ LoadPaletteAndTileData:
     cpy #1024
     bne -
 
-    rts
-
-
-
-InitializeSpriteTables:
-    ; This page is a good reference on SNES sprite formats:
-    ; http://wiki.superfamicom.org/snes/show/SNES+Sprites
-    ; It uses the same approach we're using, in which we keep a buffer of the
-    ; sprite tables in RAM, and DMA the sprite tables to the system's OAM
-    ; during VBlank.
-    SetA16Bit
-
-    ldx #$0000
-    ; Fill sprite table 1.  4 bytes per sprite, laid out as follows:
-    ; Byte 1:    xxxxxxxx    x: X coordinate
-    ; Byte 2:    yyyyyyyy    y: Y coordinate
-    ; Byte 3:    cccccccc    c: Starting tile #
-    ; Byte 4:    vhoopppc    v: vertical flip h: horizontal flip  o: priority bits
-    ;                        p: palette #
-    lda #$01
--
-    sta spriteTableStart, X
-    .rept 4
-        inx
-    .endr
-    cpx #spriteTable1Size
-    bne -
-
-    ; Fill sprite table 2.  2 bits per sprite, like so:
-    ; bits 0,2,4,6 - High bit of the sprite's x-coordinate.
-    ; bits 1,3,5,7 - Toggle Sprite size: 0 - small size   1 - large size
-    ; Setting all the high bits keeps the sprites offscreen.
-    lda #$FFFF
--
-    sta spriteTableStart, X
-    inx
-    inx
-    cpx #spriteTableSize
-    bne -
-
-    SetA8Bit
     rts
 
 
@@ -650,6 +607,22 @@ ShotDone:
 
 
 UpdateSprites:
+    ; This page is a good reference on SNES sprite formats:
+    ; http://wiki.superfamicom.org/snes/show/SNES+Sprites
+    ; It uses the same approach we're using, in which we keep a buffer of the
+    ; sprite tables in RAM, and DMA the sprite tables to the system's OAM
+    ; during VBlank.
+    ; Sprite table 1 has 4 bytes per sprite, laid out as follows:
+    ; Byte 1:    xxxxxxxx    x: X coordinate
+    ; Byte 2:    yyyyyyyy    y: Y coordinate
+    ; Byte 3:    cccccccc    c: Starting tile #
+    ; Byte 4:    vhoopppc    v: vertical flip h: horizontal flip  o: priority bits
+    ;                        p: palette #
+    ; Sprite table 2 has 2 bits per sprite, like so:
+    ; bits 0,2,4,6 - High bit of the sprite's x-coordinate.
+    ; bits 1,3,5,7 - Toggle Sprite size: 0 - small size   1 - large size
+    ; Setting all the high bits keeps the sprites offscreen.
+
     ; Zero out the scratch space for the secondary sprite table.
     ldx #0
 -
