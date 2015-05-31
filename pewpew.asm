@@ -278,7 +278,7 @@ MainLoop:
     jsr UpdateSprites
     jsr FillSecondarySpriteTable
     jsr SetBackgroundColor
-    jmp MainLoop
+    bra MainLoop
 
 
 
@@ -419,7 +419,7 @@ MaybeShoot:
     ; If we went all the way to the end, bail out.
     cpx #(playerShotArray + playerShotArrayLength * shotSize)
     beq MaybeShootDone
-    jmp -
+    bra -
 +
     ; Enable shot; set its position based on player position.
     ; TODO(mcmillen): it might be easier/faster to keep N arrays: one for each
@@ -503,7 +503,7 @@ UpdateShot:  ; Updates position of one shot.
     adc $00
     bcs DisableShot
     sta playerShotArray + 1, X  ; Store new x-coord.
-    jmp UpdateShotY
+    bra UpdateShotY
 
 UpdateShotWithNegativeXVelocity:
     ; TODO(mcmillen): wrap sprites when they go negative here, like we do
@@ -513,7 +513,6 @@ UpdateShotWithNegativeXVelocity:
     adc $00
     bcc DisableShot
     sta playerShotArray + 1, X
-    jmp UpdateShotY
 
 UpdateShotY:
     ; Add to the y-coordinate.
@@ -528,7 +527,7 @@ UpdateShotY:
     cmp #224
     bcs DisableShot
     sta playerShotArray + 2, X  ; Store new y-coord.
-    jmp ShotDone
+    bra ShotDone
 
 UpdateShotWithNegativeYVelocity:
     lda playerShotArray + 2, X  ; Current y.
@@ -536,14 +535,14 @@ UpdateShotWithNegativeYVelocity:
     bcs +  ; If the shot was "off the top" before moving, maybe we'll reap it.
     adc $00  ; Otherwise, just update it,
     sta playerShotArray + 2, X  ; save the result,
-    jmp ShotDone  ; and we know it shouldn't be reaped.
+    bra ShotDone  ; and we know it shouldn't be reaped.
 +
     clc
     adc $00
     cmp #224
     bcc DisableShot  ; If it's now wrapped around, reap it.
     sta playerShotArray + 2, X
-    jmp ShotDone
+    bra ShotDone
 
 DisableShot:
     stz playerShotArray, X
