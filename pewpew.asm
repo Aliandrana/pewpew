@@ -59,7 +59,6 @@ Start:
     SetA8Bit
 
     jsr LoadPaletteAndTileData
-    jsr InitSpriteTables
     jsr InitWorld
 
     ; Set screen mode: 16x16 tiles for backgrounds, mode 1.
@@ -206,25 +205,6 @@ LoadPaletteAndTileData:
     cpy #1024
     bne -
 
-    rts
-
-
-
-InitSpriteTables:  ; TODO(mcmillen): why do we need this?
-    SetA16Bit
-
-    ldx #$0000
-    ; Fill sprite table 1.
-    lda #$01
--
-    sta spriteTableStart, X
-    .rept 4
-        inx
-    .endr
-    cpx #spriteTable1Size
-    bne -
-
-    SetA8Bit
     rts
 
 
@@ -731,6 +711,7 @@ UpdateSprites:
     .rept 4
         inx
     .endr
+    bra -
 +
     rts
 
