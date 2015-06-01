@@ -65,8 +65,8 @@ Start:
     lda #%11000001
     sta BGMODE
 
-    ; Set sprite size to 16x16 (small) and 32x32 (large).
-    lda #%01100000
+    ; Set sprite size to 8x8 (small) and 32x32 (large).
+    lda #%00100000
     sta OAMSIZE
 
     ; Main screen: enable sprites & BG3.
@@ -429,15 +429,17 @@ MaybeShoot:
 
     lda playerX
     clc
-    adc #20
+    adc #28
     sta 1, X
 
     lda playerY
+    clc
+    adc #14
     sta 2, X
 
     ; Get x- and y-velocity out of shotVelocityTable.
     lda nextShotState
-    and #%00000111  ; 8 possibilities.
+    and #%00000000  ; 8 possibilities if we use #%00000111.
     ldy #0
 -
     cmp #0
@@ -686,7 +688,7 @@ UpdateSprites:
     ; Update secondary sprite table.
     phy  ; Save playerShotArray index.
     ldy $00
-    lda #%11000000
+    lda #%01000000
     sta spriteTableScratchStart, Y
     iny
     sty $00
