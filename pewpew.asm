@@ -488,22 +488,35 @@ UpdateShotCooldown:
 
 SpawnEnemyShots:
     lda vBlankCounter
-    bit #%00111111
+    bit #%00001111
     beq +
     rts
 +
+    ldy #0
+-
+    lda enemyShotArray, Y
+    cmp #0
+    beq +
+    .rept 6
+        iny
+    .endr
+    cpy #(enemyShotArrayLength * shotSize)
+    bne -
+    rts  ; Too many shots; bail.
+
++
     lda #12  ; Sprite number.
-    sta enemyShotArray
+    sta enemyShotArray, Y
 
     lda #254
-    sta enemyShotArray + 1  ; x.
+    sta enemyShotArray + 1, Y  ; x.
 
     lda #((224 - 32) / 2)
     and #%01111111
-    sta enemyShotArray + 2  ; y.
+    sta enemyShotArray + 2, Y  ; y.
 
-    lda #-6
-    sta enemyShotArray + 3  ; x-velocity.
+    lda #-4
+    sta enemyShotArray + 3, Y  ; x-velocity.
 
     GetRandomByte
     and #%00000111  ; [0, 7]
@@ -513,7 +526,7 @@ SpawnEnemyShots:
     bne +
     lda #0  ; [-3, 3] with 2x chance of zero.
 +
-    sta enemyShotArray + 4  ; y-velocity.
+    sta enemyShotArray + 4, Y  ; y-velocity.
     rts
 
 

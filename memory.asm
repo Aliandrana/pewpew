@@ -13,7 +13,7 @@
 ; 0030-003F: (x, y) velocities of each of the 8 possible shot states.
 ; 0040-009F: {sprite, x, y, x-velocity, y-velocity, unused} per player shot.
 ;            If sprite is 0, the shot is disabled.
-; 00A0-00FF: As above, for enemy shots.
+; 00A0-015F: As above, for enemy shots.
 ; [gap]
 ; Sprite table buffers -- copied each frame to OAM during VBlank, using DMA.
 ; 1000-11FF: table 1 (4 bytes each: x/y coord, tile #, flip/priority/palette)
@@ -34,7 +34,7 @@
 .define playerShotArray $40
 .define playerShotArrayLength 16
 .define enemyShotArray $A0
-.define enemyShotArrayLength 16
+.define enemyShotArrayLength 32
 .define shotSize 6
 
 .define numSprites 128
