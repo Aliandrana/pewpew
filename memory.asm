@@ -7,8 +7,9 @@
 ; 001A-001B: 16-bit pointer to next random byte.
 ; [gap]
 ; 0020-0021: (x, y) coordinates of player.
-; 0022: shot cooldown timer.
-; 0023: next-shot state.
+; 0022: player health.
+; 0023: shot cooldown timer.
+; 0024: next-shot state.
 ; [gap]
 ; 0030-003F: (x, y) velocities of each of the 8 possible shot states.
 ; 0040-009F: {sprite, x, y, x-velocity, y-velocity, unused} per player shot.
@@ -28,8 +29,9 @@
 .define randomBytePtr $1A
 .define playerX $20
 .define playerY $21
-.define shotCooldown $22
-.define nextShotState $23
+.define playerHealth $22
+.define shotCooldown $23
+.define nextShotState $24
 .define shotVelocityTable $30
 .define playerShotArray $40
 .define playerShotArrayLength 16

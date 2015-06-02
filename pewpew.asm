@@ -214,11 +214,13 @@ InitWorld:
     lda #4
     sta backgroundBlue
 
-    ; Player's initial starting location.
+    ; Player's initial starting location and health.
     lda #(256 / 4)
     sta playerX
     lda #((224 - 32) / 2)
     sta playerY
+    lda #10
+    sta playerHealth
 
     ; (x-velocity, y-velocity) of 4 different player shot patterns.
     lda #6
@@ -471,6 +473,7 @@ UpdateWorld:
     jsr UpdateShotCooldown
     jsr SpawnEnemyShots
     jsr UpdateShotPositions
+    jsr CheckCollisionsWithPlayer
     jsr UpdateBackgroundScroll
     rts
 
@@ -490,7 +493,7 @@ UpdateShotCooldown:
 
 SpawnEnemyShots:
     lda vBlankCounter
-    bit #%00001111
+    bit #%00001111  ; Spawn shots every this-many frames.
     beq +
     rts
 +
@@ -604,6 +607,73 @@ ShotDone:
     cpx #(playerShotArrayLength * enemyShotArrayLength * shotSize)
     bne UpdateShot
 
+    rts
+
+
+
+CheckCollisionsWithPlayer:
+    ; Store player position statically.
+    clc
+    lda playerX
+    adc #16  ; Can't overflow.
+    sta $00  ; Store the center.
+    lda playerY
+    adc #16  ; Store the center.
+    sta $01
+
+    ldx #0
+--
+    lda enemyShotArray, X
+    cmp #0  ; Check whether it's active.
+    beq ++
+
+    ; Find dx.
+    lda enemyShotArray + 1, X  ; x.
+    clc
+    adc #2  ; Get the center of the shot.
+    sbc $00
+    bpl +  ; If the result is positive, great!
+    eor #$ff  ; Otherwise, negate it.
+    inc A
++
+    ; A now contains dx, guaranteed to be positive.
+    cmp #18  ; Threshold for "successful hit".
+    bcs ++  ; Already too far; bail.
+    sta $02
+
+    ; Find dy.
+    lda enemyShotArray + 2, X  ; y.
+    clc
+    adc #2
+    sbc $01
+    bpl +  ; If the result is positive, great!
+    eor #$ff  ; Otherwise, negate it.
+    inc A
++
+    ; A now contains dy, guaranteed to be positive.
+    clc
+    adc $02  ; Add dx.
+    cmp #18  ; Threshold for "successful hit".
+    bcs ++
+
+    ; OK, we got a hit!
+    ; Disable the shot.
+    lda #0
+    sta enemyShotArray, X
+
+    ; And decrement the player's life.
+    lda playerHealth
+    cmp #0
+    beq ++
+    dec playerHealth
+
+++
+    .rept shotSize
+        inx
+    .endr
+
+    cpx #(enemyShotArrayLength * shotSize)
+    bne --
     rts
 
 
