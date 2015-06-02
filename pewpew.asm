@@ -219,7 +219,7 @@ InitWorld:
     sta playerX
     lda #((224 - 32) / 2)
     sta playerY
-    lda #10
+    lda #20
     sta playerHealth
 
     ; (x-velocity, y-velocity) of 4 different player shot patterns.
@@ -510,7 +510,7 @@ SpawnEnemyShots:
     rts  ; Too many shots; bail.
 
 +
-    lda #12  ; Sprite number.
+    lda #9  ; Sprite number.
     sta enemyShotArray, Y
 
     lda #254
@@ -732,7 +732,7 @@ UpdateSprites:
     lda #0
     sta spriteTableStart + 2, X
     ; Set priority bits so that the sprite is drawn in front.
-    lda #%00110000
+    lda #%00010000
     sta spriteTableStart + 3, X
     lda #%11000000  ; Enable large sprite.
     sta spriteTableScratchStart, Y
@@ -758,11 +758,11 @@ UpdateSprites:
     ; Update secondary sprite table.
     phy  ; Save playerShotArray index.
     ldy $00
-    lda #%01000000
+    lda #%01000000  ; Enable small sprite.
     sta spriteTableScratchStart, Y
     iny
     sty $00
-    ply  ; Restore playerShotArrayIndex.
+    ply  ; Restore playerShotArray index.
 
     .rept 4
         inx
@@ -773,6 +773,38 @@ UpdateSprites:
     .endr
     cpy #((playerShotArrayLength + enemyShotArrayLength) * shotSize)
     bne -
+    ldy $00  ; Restore Y to its rightful self.
+
+    ; Now add sprites to show player health.
+    ; TODO(mcmillen): why aren't they in front?
+    stz $01
+    lda #4
+    sta $02
+-
+    lda $01
+    cmp playerHealth
+    beq +  ; All done?
+    lda #10
+    sta spriteTableStart + 2, X  ; sprite number
+    lda $02
+    sta spriteTableStart, X  ; x
+    clc
+    adc #7
+    sta $02
+    lda #212
+    sta spriteTableStart + 1, X  ; y
+    ; Set priority bits so that the sprite is drawn in front.
+    lda #%00110000
+    sta spriteTableStart + 3, X
+    lda #%01000000  ; Enable small sprite.
+    sta spriteTableScratchStart, Y
+    .rept 4
+        inx
+    .endr
+    iny
+    inc $01
+    bra -
++
 
     ; Now clear out the unused entries in the sprite table.
 -
