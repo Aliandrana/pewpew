@@ -618,7 +618,10 @@ CheckCollisionsWithPlayer:
     adc #16  ; Can't overflow.
     sta $00  ; Store the center.
     lda playerY
-    adc #16  ; Store the center.
+    ; Store the center. Our ship is actually 31 pixels tall, so offsetting by
+    ; 15 feels more "fair": a shot that hits the invisible bottom edge of the
+    ; ship won't count as a hit.
+    adc #15
     sta $01
 
     ldx #0
