@@ -471,7 +471,9 @@ MaybeShootDone:
 
 UpdateWorld:
     jsr UpdateShotCooldown
+    jsr SpawnEnemyShips
     jsr SpawnEnemyShots
+    jsr UpdateEnemyShips
     jsr UpdateShotPositions
     jsr CheckCollisionsWithPlayer
     jsr UpdateBackgroundScroll
@@ -491,12 +493,86 @@ UpdateShotCooldown:
 
 
 
+SpawnEnemyShips:
+    GetRandomByte
+    bit #%00111111  ; Spawn ships every this-many frames (on average).
+    beq +
+    rts
++
+    ; Find an empty spot in the array.
+    ldy #0
+-
+    lda enemyShipArray, Y
+    cmp #0
+    beq +
+    .rept enemyShipSize
+        iny
+    .endr
+    cpy #(enemyShipArrayLength * enemyShipSize)
+    bne -
+    rts  ; Too many ships; bail.
+
++
+    lda #4  ; Sprite number.
+    sta enemyShipArray, Y
+
+    lda #(256 - 32)
+    sta enemyShipArray + 1, Y  ; x.
+
+-
+    GetRandomByte
+    cmp #(224 - 32)
+    bcs -  ; Keep trying.
+    sta enemyShipArray + 2, Y  ; y.
+
+    lda #0
+    sta enemyShipArray + 3, Y  ; move AI type.
+    sta enemyShipArray + 4, Y  ; shoot AI type.
+
+    lda #8
+    sta enemyShipArray + 5, Y  ; shot cooldown.
+
+    rts
+
+
+
+; TODO(mcmillen): reap ships if they move off the top, bottom, or right too.
+UpdateEnemyShips:
+    ldy #0
+--
+    lda enemyShipArray, Y
+    cmp #0
+    beq ++
+
+    lda enemyShipArray + 1, Y  ; x
+    clc
+    adc #-2
+    bcs +
+    lda #0
+    sta enemyShipArray, Y  ; reap it.
+    bra ++
++
+    sta enemyShipArray + 1, Y
+
+
+++
+    .rept enemyShipSize
+        iny
+    .endr
+
+    cpy #(enemyShipArrayLength * enemyShipSize)
+    bne --
+    rts
+
+
+
 SpawnEnemyShots:
     lda vBlankCounter
     bit #%00001111  ; Spawn shots every this-many frames.
     beq +
     rts
 +
+    ; Find an empty spot in the array.
     ldy #0
 -
     lda enemyShotArray, Y
@@ -604,7 +680,7 @@ ShotDone:
     .rept shotSize
         inx
     .endr
-    cpx #(playerShotArrayLength * enemyShotArrayLength * shotSize)
+    cpx #((playerShotArrayLength + enemyShotArrayLength) * shotSize)
     bne UpdateShot
 
     rts
@@ -699,7 +775,7 @@ UpdateBackgroundScroll:
 
 
 
-UpdateSprites:
+UpdateSprites:  ; TODO(mcmillen): refactor into smaller pieces.
     ; This page is a good reference on SNES sprite formats:
     ; http://wiki.superfamicom.org/snes/show/SNES+Sprites
     ; It uses the same approach we're using, in which we keep a buffer of the
@@ -744,6 +820,42 @@ UpdateSprites:
         inx
     .endr
     iny
+
+    ; Now add enemy ships.
+    sty $00  ; Save sprite table 2 index.
+    ldy #0  ; Index into enemyShipArray.
+-
+    lda enemyShipArray, Y
+    cmp #0  ; If not enabled, skip to next ship.
+    beq +
+    ; Update sprite table 1.
+    sta spriteTableStart + 2, X  ; sprite number
+    lda enemyShipArray + 1, Y
+    sta spriteTableStart, X  ; x
+    lda enemyShipArray + 2, Y
+    sta spriteTableStart + 1, X  ; y
+    lda #%01000000  ; flip horizontally.
+    sta spriteTableStart + 3, X
+    ; Update secondary sprite table.
+    phy  ; Save enemyShipArray index.
+    ldy $00
+    lda #%11000000  ; Enable large sprite.
+    sta spriteTableScratchStart, Y
+    iny
+    sty $00
+    ply  ; Restore enemyShipArray index.
+
+    .rept 4
+        inx
+    .endr
+
++
+    .rept enemyShipSize
+        iny
+    .endr
+    cpy #(enemyShipArrayLength * enemyShipSize)
+    bne -
+    ldy $00  ; Restore Y to its rightful self.
 
     ; Now add shots.
     sty $00  ; Save sprite table 2 index.

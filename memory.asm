@@ -15,6 +15,8 @@
 ; 0040-009F: {sprite, x, y, x-velocity, y-velocity, unused} per player shot.
 ;            If sprite is 0, the shot is disabled.
 ; 00A0-015F: As above, for enemy shots.
+; 0160-????: {sprite, x, y, move AI type, shoot AI type, shot cooldown}
+;            per enemy ship.
 ; [gap]
 ; Sprite table buffers -- copied each frame to OAM during VBlank, using DMA.
 ; 1000-11FF: table 1 (4 bytes each: x/y coord, tile #, flip/priority/palette)
@@ -38,6 +40,10 @@
 .define enemyShotArray $A0
 .define enemyShotArrayLength 32
 .define shotSize 6
+.define enemyShipArray $160
+.define enemyShipArrayLength 4
+.define enemyShipSize 6
+
 
 .define numSprites 128
 .define spriteTableStart $1000
