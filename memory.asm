@@ -10,6 +10,7 @@
 ; 0022: player health.
 ; 0023: shot cooldown timer.
 ; 0024: next-shot state.
+; 0025: number of frames until the next enemy ship spawns.
 ; [gap]
 ; 0030-003F: (x, y) velocities of each of the 8 possible shot states.
 ; 0040-009F: {sprite, x, y, x-velocity, y-velocity, unused} per player shot.
@@ -34,6 +35,7 @@
 .define playerHealth $22
 .define shotCooldown $23
 .define nextShotState $24
+.define enemyShipSpawnCooldown $25
 .define shotVelocityTable $30
 .define playerShotArray $40
 .define playerShotArrayLength 16

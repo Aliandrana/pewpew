@@ -218,6 +218,10 @@ InitWorld:
     lda #4
     sta backgroundBlue
 
+    ; Initial enemy ship-spawn cooldown.
+    lda #30
+    sta enemyShipSpawnCooldown
+
     ; Player's initial starting location and health.
     lda #(256 / 4)
     sta playerX
@@ -498,11 +502,19 @@ UpdateShotCooldown:
 
 
 SpawnEnemyShips:
-    GetRandomByte
-    bit #%01111111  ; Spawn ships every this-many frames (on average).
+    lda enemyShipSpawnCooldown
+    cmp #0
     beq +
+    dec A
+    sta enemyShipSpawnCooldown
     rts
 +
+    GetRandomByte
+    and #%00111111
+    clc
+    adc #32
+    sta enemyShipSpawnCooldown
+
     ; Find an empty spot in the array.
     ldy #0
 -
@@ -520,7 +532,7 @@ SpawnEnemyShips:
     lda #4  ; Sprite number.
     sta enemyShipArray, Y
 
-    lda #(256 - 32)
+    lda #254
     sta enemyShipArray + 1, Y  ; x.
 
 -
