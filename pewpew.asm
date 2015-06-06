@@ -495,7 +495,7 @@ UpdateShotCooldown:
 
 SpawnEnemyShips:
     GetRandomByte
-    bit #%00111111  ; Spawn ships every this-many frames (on average).
+    bit #%01111111  ; Spawn ships every this-many frames (on average).
     beq +
     rts
 +
@@ -552,7 +552,7 @@ UpdateEnemyShips:
     sta enemyShipArray, Y  ; reap it.
     bra ++
 +
-    sta enemyShipArray + 1, Y
+    sta enemyShipArray + 1, Y  ; move it.
 
 
 ++
@@ -568,7 +568,7 @@ UpdateEnemyShips:
 
 SpawnEnemyShots:
     lda vBlankCounter
-    bit #%00001111  ; Spawn shots every this-many frames.
+    bit #%00011111  ; Spawn shots every this-many frames.
     beq +
     rts
 +
