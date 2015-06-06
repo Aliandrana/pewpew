@@ -5,6 +5,10 @@
 
 
 
+; TODO(mcmillen): define screen / ship / shot dimensions as constants.
+
+
+
 ; Sets A to 8-bit (& enables 8-bit "B" register).
 .MACRO SetA8Bit
 sep #%00100000  ; 8-bit A/B.
@@ -471,10 +475,10 @@ MaybeShootDone:
 
 UpdateWorld:
     jsr UpdateShotCooldown
-    jsr SpawnEnemyShips
-    jsr SpawnEnemyShots
-    jsr UpdateEnemyShips
     jsr UpdateShotPositions
+    jsr SpawnEnemyShips
+    jsr UpdateEnemyShips
+
     jsr CheckCollisionsWithPlayer
     jsr UpdateBackgroundScroll
     rts
@@ -529,7 +533,7 @@ SpawnEnemyShips:
     sta enemyShipArray + 3, Y  ; move AI type.
     sta enemyShipArray + 4, Y  ; shoot AI type.
 
-    lda #8
+    lda #12
     sta enemyShipArray + 5, Y  ; shot cooldown.
 
     rts
@@ -539,14 +543,17 @@ SpawnEnemyShips:
 ; TODO(mcmillen): reap ships if they move off the top, bottom, or right too.
 UpdateEnemyShips:
     ldy #0
+    sty $00  ; Index into enemyShotArray.
 --
     lda enemyShipArray, Y
-    cmp #0
+    cmp #0  ; If it's not enabled, skip it.
     beq ++
 
+    ; Move the ship.
+    ; TODO(mcmillen): implement different movement based on AI-type.
     lda enemyShipArray + 1, Y  ; x
     clc
-    adc #-2
+    adc #-2  ; x-velocity.
     bcs +
     lda #0
     sta enemyShipArray, Y  ; reap it.
@@ -554,8 +561,26 @@ UpdateEnemyShips:
 +
     sta enemyShipArray + 1, Y  ; move it.
 
+    lda enemyShipArray + 5, Y  ; shot cooldown
+    cmp #0
+    beq +
+    dec A
+    sta enemyShipArray + 5, Y  ; new shot cooldown
+    bra ++
 
-++
++  ; Add a shot.
+    ; TODO(mcmillen): implement different shooting based on shoot-type.
+    lda enemyShipArray + 1, Y
+    sta $02  ; Enemy ship X.
+    lda enemyShipArray + 2, Y
+    sta $03  ; Enemy ship Y.
+    lda #12
+    sta enemyShipArray + 5, Y  ; new shot cooldown
+    phy
+    jsr SpawnEnemyShot
+    ply
+
+++  ; Done processing this ship.
     .rept enemyShipSize
         iny
     .endr
@@ -566,48 +591,52 @@ UpdateEnemyShips:
 
 
 
-SpawnEnemyShots:
-    lda vBlankCounter
-    bit #%00011111  ; Spawn shots every this-many frames.
-    beq +
+; Expects:
+; $00: index into enemyShotArray (bytes).
+; $02: enemy ship x-position.
+; $03: enemy ship y-position.
+;
+; Modifies: A & Y.
+; $00: new index into enemyShotArray (bytes).
+SpawnEnemyShot:
+    ldy $00
+-
+    ; Bail if at end of array.
+    cpy #(enemyShotArrayLength * shotSize)
+    bne +
+    sty $00
     rts
 +
-    ; Find an empty spot in the array.
-    ldy #0
--
+
     lda enemyShotArray, Y
     cmp #0
     beq +
-    .rept 6
+    ; Try next slot.
+    .rept shotSize
         iny
     .endr
-    cpy #(enemyShotArrayLength * shotSize)
-    bne -
-    rts  ; Too many shots; bail.
-
+    bra -
 +
+
+    ; OK, found a spot.
     lda #9  ; Sprite number.
     sta enemyShotArray, Y
 
-    lda #254
-    sta enemyShotArray + 1, Y  ; x.
+    lda $02  ; Get enemy x.
+    sta enemyShotArray + 1, Y  ; Save as shot x.
 
-    lda #((224 - 32) / 2)
-    and #%01111111
-    sta enemyShotArray + 2, Y  ; y.
+    lda $03  ; Get enemy y.
+    clc
+    adc #((32 - 4) / 2) ; Center it with enemy ship.
+    sta enemyShotArray + 2, Y  ; Save as shot y.
 
-    lda #-4
+    lda #-6
     sta enemyShotArray + 3, Y  ; x-velocity.
 
-    GetRandomByte
-    and #%00000111  ; [0, 7]
-    clc
-    adc #-3  ; [-3, 4]
-    cmp #4
-    bne +
-    lda #0  ; [-3, 3] with 2x chance of zero.
-+
+    lda #0
     sta enemyShotArray + 4, Y  ; y-velocity.
+
+    sty $00
     rts
 
 
