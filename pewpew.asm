@@ -5,7 +5,7 @@
 
 
 
-; TODO(mcmillen): define screen / ship / shot dimensions as constants.
+; TODO: define screen / ship / shot dimensions as constants.
 
 
 
@@ -103,7 +103,7 @@ LoadPaletteAndTileData:
     ; Initialize the palette memory in a loop.
     ; We could also do this with a DMA transfer (like we do with the tile data
     ; below), but it seems overkill for just a few bytes. :)
-    ; TODO(mcmillen): do it with a DMA transfer.
+    ; TODO: do it with a DMA transfer.
 
     ; First, sprite palette data:
     ldx #0
@@ -128,7 +128,7 @@ LoadPaletteAndTileData:
     cpx #8  ; 8 bytes of palette data.
     bne -
 
-    ; TODO(mcmillen): make the "DMA stuff into VRAM" a macro or function.
+    ; TODO: make the "DMA stuff into VRAM" a macro or function.
     ; Set VMADDR to where we want the DMA to start.  We'll store sprite data
     ; at the beginning of VRAM.
     ldx #$0000
@@ -428,7 +428,7 @@ MaybeShoot:
     bra -
 +
     ; Enable shot; set its position based on player position.
-    ; TODO(mcmillen): it might be easier/faster to keep N arrays: one for each
+    ; TODO: it might be easier/faster to keep N arrays: one for each
     ; field of shot (shotSpriteArray, shotXArray, shotYArray, ...)
     lda #8  ; Sprite number.
     sta 0, X
@@ -540,7 +540,7 @@ SpawnEnemyShips:
 
 
 
-; TODO(mcmillen): reap ships if they move off the top, bottom, or right too.
+; TODO: reap ships if they move off the top, bottom, or right too.
 UpdateEnemyShips:
     ldy #0
     sty $00  ; Index into enemyShotArray.
@@ -550,7 +550,7 @@ UpdateEnemyShips:
     beq ++
 
     ; Move the ship.
-    ; TODO(mcmillen): implement different movement based on AI-type.
+    ; TODO: implement different movement based on AI-type.
     lda enemyShipArray + 1, Y  ; x
     clc
     adc #-2  ; x-velocity.
@@ -569,7 +569,7 @@ UpdateEnemyShips:
     bra ++
 
 +  ; Add a shot.
-    ; TODO(mcmillen): implement different shooting based on shoot-type.
+    ; TODO: implement different shooting based on shoot-type.
     lda enemyShipArray + 1, Y
     sta $02  ; Enemy ship X.
     lda enemyShipArray + 2, Y
@@ -662,8 +662,8 @@ UpdateShot:  ; Updates position of one shot.
     bra UpdateShotY
 
 UpdateShotWithNegativeXVelocity:
-    ; TODO(mcmillen): wrap sprites when they go negative here, like we do
-    ; with y-velocities.
+    ; TODO: wrap sprites when they go negative here, like we do with
+    ; y-velocities.
     lda playerShotArray + 1, X  ; Current x.
     clc
     adc $00
@@ -704,8 +704,8 @@ DisableShot:
     stz playerShotArray, X
 
 ShotDone:
-    ; TODO(mcmillen): in places where we .rept inx (etc), is it faster to use
-    ; actual addition?
+    ; TODO: in places where we .rept inx (etc), is it faster to use actual
+    ; addition?
     .rept shotSize
         inx
     .endr
@@ -804,7 +804,7 @@ UpdateBackgroundScroll:
 
 
 
-UpdateSprites:  ; TODO(mcmillen): refactor into smaller pieces.
+UpdateSprites:  ; TODO: refactor into smaller pieces.
     ; This page is a good reference on SNES sprite formats:
     ; http://wiki.superfamicom.org/snes/show/SNES+Sprites
     ; It uses the same approach we're using, in which we keep a buffer of the
@@ -920,7 +920,7 @@ UpdateSprites:  ; TODO(mcmillen): refactor into smaller pieces.
     ldy $00  ; Restore Y to its rightful self.
 
     ; Now add sprites to show player health.
-    ; TODO(mcmillen): why aren't they in front?
+    ; TODO: why aren't they in front?
     stz $01
     lda #4
     sta $02
