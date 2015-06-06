@@ -12,3 +12,7 @@ The main files are:
 * registers.asm: definitions & documentation of important SNES registers.
 * header.asm: definition of ROM layout & SNES header information for wla.
 * init.asm: boilerplate "initialize the hardware" macro.
+
+Screenshot:
+
+![Screenshot](https://lh6.googleusercontent.com/-hMl72JNxxvo/VXMD56gpO1I/AAAAAAAB1ig/YQHfPTIY4lQ/w512-h448-no/pewpew008.png)
