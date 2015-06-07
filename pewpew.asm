@@ -321,7 +321,7 @@ JoypadDown:
     bit #$04  ; Down
     beq JoypadLeft  ; Button not pressed.
     lda playerY
-    cmp #(224 - 32)
+    cmp #(224 - 32 - 8 - 4)  ; player height, bottom status bar, bottom padding
     beq JoypadLeft  ; Value saturated.
     inc playerY
     inc playerY
@@ -539,7 +539,7 @@ SpawnEnemyShips:
 
 -
     GetRandomByte
-    cmp #(224 - 32 - 8)
+    cmp #(224 - 32 - 8 - 4)
     bcs -  ; Keep trying.
     sta enemyShipArray + 2, Y  ; y.
 
@@ -872,7 +872,6 @@ CheckCollisionsWithEnemies:
     sta enemyShipArray, Y
 
     ; Give that player some points. Players love points.
-    ; TODO: convert to decimal only at display time?
     SetA16Bit
     sed  ; Set decimal mode.
     lda playerScore
@@ -1066,20 +1065,19 @@ UpdateSprites:  ; TODO: refactor into smaller pieces.
 +
 
     ; Sprites to show player score.
+    ; TODO: refactor how player score is displayed.
+    ; First digit.
+    lda playerScore
+    and #$0F
     clc
-    lda #252
-    sta $00  ; Current x.
-    stz $01  ; Fake score.
--
-    lda #64
-    adc $01
+    adc #64  ; Base index of digit sprites.
     sta spriteTableStart + 2, X  ; sprite number
-    lda $00
-    sbc #7
-    sta $00
+
+    lda #(252 - 7)
     sta spriteTableStart, X  ; x
     lda #212
     sta spriteTableStart + 1, X  ; y
+
     ; Set priority bits so that the sprite is drawn in front.
     lda #%00110000
     sta spriteTableStart + 3, X
@@ -1090,10 +1088,76 @@ UpdateSprites:  ; TODO: refactor into smaller pieces.
     .endr
     iny
 
-    inc $01
-    lda $01
-    cmp #10
-    bne -
+    ; Second digit.
+    lda playerScore
+    .rept 4
+        lsr
+    .endr
+    clc
+    adc #64  ; Base index of digit sprites.
+    sta spriteTableStart + 2, X  ; sprite number
+
+    lda #(252 - 7 * 2)
+    sta spriteTableStart, X  ; x
+    lda #212
+    sta spriteTableStart + 1, X  ; y
+
+    ; Set priority bits so that the sprite is drawn in front.
+    lda #%00110000
+    sta spriteTableStart + 3, X
+    lda #%01000000  ; Enable small sprite.
+    sta spriteTableScratchStart, Y
+    .rept 4
+        inx
+    .endr
+    iny
+
+    ; Third digit.
+    lda playerScore + 1
+    and #$0F
+    clc
+    adc #64  ; Base index of digit sprites.
+    sta spriteTableStart + 2, X  ; sprite number
+
+    lda #(252 - 7 * 3)
+    sta spriteTableStart, X  ; x
+    lda #212
+    sta spriteTableStart + 1, X  ; y
+
+    ; Set priority bits so that the sprite is drawn in front.
+    lda #%00110000
+    sta spriteTableStart + 3, X
+    lda #%01000000  ; Enable small sprite.
+    sta spriteTableScratchStart, Y
+    .rept 4
+        inx
+    .endr
+    iny
+
+    ; Fourth digit.
+    lda playerScore + 1
+    .rept 4
+        lsr
+    .endr
+    clc
+    adc #64  ; Base index of digit sprites.
+    sta spriteTableStart + 2, X  ; sprite number
+
+    lda #(252 - 7 * 4)
+    sta spriteTableStart, X  ; x
+    lda #212
+    sta spriteTableStart + 1, X  ; y
+
+    ; Set priority bits so that the sprite is drawn in front.
+    lda #%00110000
+    sta spriteTableStart + 3, X
+    lda #%01000000  ; Enable small sprite.
+    sta spriteTableScratchStart, Y
+    .rept 4
+        inx
+    .endr
+    iny
+
 
     ; Now clear out the unused entries in the sprite table.
 -
