@@ -223,9 +223,22 @@ LoadPaletteAndTileData:
 
 
 InitWorld:
-    ; Start the background color as a dark blue.
-    lda #4
-    sta backgroundBlue
+    ; Start the background color as black.
+    stz backgroundRed
+    stz backgroundGreen
+    stz backgroundBlue
+
+    ; Clear the memory that's used to keep track of normal game state.
+    SetA16Bit
+    lda #0
+    ldx #$20
+-
+    sta 0, X
+    inx
+    inx
+    cpx #$1000
+    bne -
+    SetA8Bit
 
     ; Initial enemy ship-spawn cooldown.
     lda #30
@@ -292,11 +305,30 @@ MainLoop:
     sta NMITIMEN
 
     jsr JoypadRead
+
+    lda playerHealth
+    cmp #0
+    beq +
     jsr UpdateWorld
+    bra ++
++
+    jsr GameOver
+++
     jsr UpdateSprites
     jsr FillSecondarySpriteTable
     jsr SetBackgroundColor
     bra MainLoop
+
+
+
+GameOver:
+    ; Wait until the player hits Start.
+    lda joy1 + 1
+    bit #$10  ; Start
+    beq +
+    jsr InitWorld
++
+    rts
 
 
 
@@ -314,6 +346,7 @@ JoypadRead:
 
 
 
+; TODO: move functions around to be in a more sensible order.
 JoypadHandler:
 JoypadUp:
     lda joy1 + 1
@@ -348,48 +381,30 @@ JoypadLeft:
 JoypadRight:
     lda joy1 + 1
     bit #$01  ; Right
-    beq JoypadStart  ; Button not pressed.
+    beq JoypadY  ; Button not pressed.
     lda playerX
     cmp #(256 - 32)
-    beq JoypadStart  ; Value saturated.
-    inc playerX
-    inc playerX
-
-JoypadStart:
-    lda joy1 + 1
-    bit #$10  ; Start
-    beq JoypadSelect  ; Button not pressed.
-    lda backgroundRed
-    cmp #31
-    beq JoypadSelect  ; Value saturated.
-    inc backgroundRed
-
-JoypadSelect:
-    lda joy1 + 1
-    bit #$20  ; Select
-    beq JoypadY  ; Button not pressed.
-    lda backgroundRed
-    cmp #0
     beq JoypadY  ; Value saturated.
-    dec backgroundRed
+    inc playerX
+    inc playerX
 
 JoypadY:
     lda joy1 + 1
     bit #$40  ; Y
     beq JoypadX  ; Button not pressed.
-    lda backgroundGreen
+    lda backgroundRed
     cmp #0
     beq JoypadX  ; Value saturated.
-    dec backgroundGreen
+    dec backgroundRed
 
 JoypadX:
     lda joy1
     bit #$40  ; X
     beq JoypadL  ; Button not pressed.
-    lda backgroundGreen
+    lda backgroundRed
     cmp #31
     beq JoypadL  ; Value saturated.
-    inc backgroundGreen
+    inc backgroundRed
 
 JoypadL:
     lda joy1
@@ -440,8 +455,6 @@ MaybeShoot:
     rts
 +
     ; Enable shot; set its position based on player position.
-    ; TODO: it might be easier/faster to keep N arrays: one for each
-    ; field of shot (shotSpriteArray, shotXArray, shotYArray, ...)
     lda #8  ; Sprite number.
     sta 0, X
 
@@ -954,6 +967,8 @@ UpdateSprites:  ; TODO: refactor into smaller pieces.
     ldx #0  ; Index into sprite table 1.
     ldy #0  ; Index into sprite table 2.
 
+    jsr MaybeGameOver
+
     ; Copy player coords into sprite table.
     lda playerX
     sta spriteTableStart, X
@@ -1031,7 +1046,6 @@ UpdateSprites:  ; TODO: refactor into smaller pieces.
     ldy $00  ; Restore Y to its rightful self.
 
     ; Now add sprites to show player health.
-    ; TODO: why aren't they in front?
     stz $01
     lda #4
     sta $02
@@ -1083,6 +1097,112 @@ UpdateSprites:  ; TODO: refactor into smaller pieces.
     AdvanceSpritePointers
     bra -
 +
+    rts
+
+
+
+MaybeGameOver:
+    lda playerHealth
+    cmp #0
+    beq +
+    rts
++
+    ; Sprites to show "Game Over" text.
+    lda #80 ; G
+    sta spriteTableStart + 2, X
+    lda #112
+    sta spriteTableStart, X
+    lda #104
+    sta spriteTableStart + 1, X
+    lda #%00110000
+    sta spriteTableStart + 3, X
+    lda #%01000000  ; Enable small sprite.
+    sta spriteTableScratchStart, Y
+    AdvanceSpritePointers
+
+    lda #81 ; A
+    sta spriteTableStart + 2, X
+    lda #120
+    sta spriteTableStart, X
+    lda #104
+    sta spriteTableStart + 1, X
+    lda #%00110000
+    sta spriteTableStart + 3, X
+    lda #%01000000  ; Enable small sprite.
+    sta spriteTableScratchStart, Y
+    AdvanceSpritePointers
+
+    lda #82 ; M
+    sta spriteTableStart + 2, X
+    lda #128
+    sta spriteTableStart, X
+    lda #104
+    sta spriteTableStart + 1, X
+    lda #%00110000
+    sta spriteTableStart + 3, X
+    lda #%01000000  ; Enable small sprite.
+    sta spriteTableScratchStart, Y
+    AdvanceSpritePointers
+
+    lda #83 ; E
+    sta spriteTableStart + 2, X
+    lda #136
+    sta spriteTableStart, X
+    lda #104
+    sta spriteTableStart + 1, X
+    lda #%00110000
+    sta spriteTableStart + 3, X
+    lda #%01000000  ; Enable small sprite.
+    sta spriteTableScratchStart, Y
+    AdvanceSpritePointers
+
+    lda #84 ; O
+    sta spriteTableStart + 2, X
+    lda #112
+    sta spriteTableStart, X
+    lda #114
+    sta spriteTableStart + 1, X
+    lda #%00110000
+    sta spriteTableStart + 3, X
+    lda #%01000000  ; Enable small sprite.
+    sta spriteTableScratchStart, Y
+    AdvanceSpritePointers
+
+    lda #85 ; V
+    sta spriteTableStart + 2, X
+    lda #120
+    sta spriteTableStart, X
+    lda #114
+    sta spriteTableStart + 1, X
+    lda #%00110000
+    sta spriteTableStart + 3, X
+    lda #%01000000  ; Enable small sprite.
+    sta spriteTableScratchStart, Y
+    AdvanceSpritePointers
+
+    lda #83 ; E
+    sta spriteTableStart + 2, X
+    lda #128
+    sta spriteTableStart, X
+    lda #114
+    sta spriteTableStart + 1, X
+    lda #%00110000
+    sta spriteTableStart + 3, X
+    lda #%01000000  ; Enable small sprite.
+    sta spriteTableScratchStart, Y
+    AdvanceSpritePointers
+
+    lda #86 ; R
+    sta spriteTableStart + 2, X
+    lda #136
+    sta spriteTableStart, X
+    lda #114
+    sta spriteTableStart + 1, X
+    lda #%00110000
+    sta spriteTableStart + 3, X
+    lda #%01000000  ; Enable small sprite.
+    sta spriteTableScratchStart, Y
+    AdvanceSpritePointers
     rts
 
 
