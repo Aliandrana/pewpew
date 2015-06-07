@@ -283,7 +283,6 @@ MainLoop:
     sta NMITIMEN
 
     jsr JoypadRead
-    jsr JoypadHandler
     jsr UpdateWorld
     jsr UpdateSprites
     jsr FillSecondarySpriteTable
@@ -428,8 +427,8 @@ MaybeShoot:
     .endr
     ; If we went all the way to the end, bail out.
     cpx #(playerShotArray + playerShotArrayLength * shotSize)
-    beq MaybeShootDone
-    bra -
+    bne -
+    rts
 +
     ; Enable shot; set its position based on player position.
     ; TODO: it might be easier/faster to keep N arrays: one for each
@@ -480,6 +479,7 @@ MaybeShootDone:
 UpdateWorld:
     jsr UpdateShotCooldown
     jsr UpdateShotPositions
+    jsr JoypadHandler
     jsr SpawnEnemyShips
     jsr UpdateEnemyShips
 
@@ -554,7 +554,7 @@ SpawnEnemyShips:
 
 ; TODO: reap ships if they move off the top, bottom, or right too.
 UpdateEnemyShips:
-    ldy #0
+    ldy #0  ; Index into enemyShipArray.
     sty $00  ; Index into enemyShotArray.
 --
     lda enemyShipArray, Y
@@ -582,14 +582,18 @@ UpdateEnemyShips:
 
 +  ; Add a shot.
     ; TODO: implement different shooting based on shoot-type.
-    lda enemyShipArray + 1, Y
-    sta $02  ; Enemy ship X.
-    lda enemyShipArray + 2, Y
-    sta $03  ; Enemy ship Y.
     lda #12
     sta enemyShipArray + 5, Y  ; new shot cooldown
+
+    lda enemyShipArray + 1, Y
+    sta $02  ; Enemy ship x.
+    lda enemyShipArray + 2, Y
+    sta $03  ; Enemy ship y.
+
     phy
+    ldy $00
     jsr SpawnEnemyShot
+    sty $00
     ply
 
 ++  ; Done processing this ship.
@@ -604,19 +608,18 @@ UpdateEnemyShips:
 
 
 ; Expects:
-; $00: index into enemyShotArray (bytes).
+; Y: index into enemyShotArray (bytes).
 ; $02: enemy ship x-position.
 ; $03: enemy ship y-position.
 ;
-; Modifies: A & Y.
-; $00: new index into enemyShotArray (bytes).
+; Modifies:
+; A.
+; Y: to point at the next possible free index into enemyShotArray.
 SpawnEnemyShot:
-    ldy $00
 -
     ; Bail if at end of array.
     cpy #(enemyShotArrayLength * shotSize)
     bne +
-    sty $00
     rts
 +
 
@@ -648,7 +651,6 @@ SpawnEnemyShot:
     lda #0
     sta enemyShotArray + 4, Y  ; y-velocity.
 
-    sty $00
     rts
 
 
