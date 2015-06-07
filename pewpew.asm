@@ -47,6 +47,15 @@ rep #%00010000  ; 16-bit X/Y.
 
 
 
+; Modifies X and Y to move to the next elements in the sprite tables.
+.MACRO AdvanceSpritePointers
+    .rept 4
+        inx
+    .endr
+    iny
+.ENDM
+
+
 .BANK 0 SLOT 0
 .ORG 0
 .SECTION "MainCode"
@@ -958,11 +967,7 @@ UpdateSprites:  ; TODO: refactor into smaller pieces.
     sta spriteTableStart + 3, X
     lda #%11000000  ; Enable large sprite.
     sta spriteTableScratchStart, Y
-
-    .rept 4
-        inx
-    .endr
-    iny
+    AdvanceSpritePointers
 
     ; Now add enemy ships.
     sty $00  ; Save sprite table 2 index.
@@ -984,13 +989,9 @@ UpdateSprites:  ; TODO: refactor into smaller pieces.
     ldy $00
     lda #%11000000  ; Enable large sprite.
     sta spriteTableScratchStart, Y
-    iny
+    AdvanceSpritePointers
     sty $00
     ply  ; Restore enemyShipArray index.
-
-    .rept 4
-        inx
-    .endr
 
 +
     .rept enemyShipSize
@@ -1018,13 +1019,10 @@ UpdateSprites:  ; TODO: refactor into smaller pieces.
     ldy $00
     lda #%01000000  ; Enable small sprite.
     sta spriteTableScratchStart, Y
-    iny
+    AdvanceSpritePointers
     sty $00
     ply  ; Restore playerShotArray index.
 
-    .rept 4
-        inx
-    .endr
 +
     .rept shotSize
         iny
@@ -1056,10 +1054,8 @@ UpdateSprites:  ; TODO: refactor into smaller pieces.
     sta spriteTableStart + 3, X
     lda #%01000000  ; Enable small sprite.
     sta spriteTableScratchStart, Y
-    .rept 4
-        inx
-    .endr
-    iny
+    AdvanceSpritePointers
+
     inc $01
     bra -
 +
@@ -1083,10 +1079,7 @@ UpdateSprites:  ; TODO: refactor into smaller pieces.
     sta spriteTableStart + 3, X
     lda #%01000000  ; Enable small sprite.
     sta spriteTableScratchStart, Y
-    .rept 4
-        inx
-    .endr
-    iny
+    AdvanceSpritePointers
 
     ; Second digit.
     lda playerScore
@@ -1107,10 +1100,7 @@ UpdateSprites:  ; TODO: refactor into smaller pieces.
     sta spriteTableStart + 3, X
     lda #%01000000  ; Enable small sprite.
     sta spriteTableScratchStart, Y
-    .rept 4
-        inx
-    .endr
-    iny
+    AdvanceSpritePointers
 
     ; Third digit.
     lda playerScore + 1
@@ -1129,10 +1119,7 @@ UpdateSprites:  ; TODO: refactor into smaller pieces.
     sta spriteTableStart + 3, X
     lda #%01000000  ; Enable small sprite.
     sta spriteTableScratchStart, Y
-    .rept 4
-        inx
-    .endr
-    iny
+    AdvanceSpritePointers
 
     ; Fourth digit.
     lda playerScore + 1
@@ -1153,11 +1140,7 @@ UpdateSprites:  ; TODO: refactor into smaller pieces.
     sta spriteTableStart + 3, X
     lda #%01000000  ; Enable small sprite.
     sta spriteTableScratchStart, Y
-    .rept 4
-        inx
-    .endr
-    iny
-
+    AdvanceSpritePointers
 
     ; Now clear out the unused entries in the sprite table.
 -
@@ -1165,9 +1148,7 @@ UpdateSprites:  ; TODO: refactor into smaller pieces.
     beq +
     lda #1
     sta spriteTableStart, X
-    .rept 4
-        inx
-    .endr
+    AdvanceSpritePointers
     bra -
 +
     rts
