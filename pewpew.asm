@@ -223,11 +223,6 @@ LoadPaletteAndTileData:
 
 
 InitWorld:
-    ; Start the background color as black.
-    stz backgroundRed
-    stz backgroundGreen
-    stz backgroundBlue
-
     ; Clear the memory that's used to keep track of normal game state.
     SetA16Bit
     lda #0
