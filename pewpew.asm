@@ -735,17 +735,18 @@ ShotDone:
 ; Expects:
 ; $00: x-coordinate of ship's center.
 ; $01: y-coordinate of ship's center.
-; $02: x-coordinate of shot's upper-left.
-; $03: y-coordinate of shot's upper-left.
-; $04: half of the shot's size.
+; $02: half of the shot's size.
+; $03: x-coordinate of shot's upper-left.
+; $04: y-coordinate of shot's upper-left.
+
 ;
 ; Modifies:
 ; $05
 ; A: set to non-zero if there was a collision, zero otherwise.
 CheckCollision:
-    lda $02
+    lda $03
     clc
-    adc $04  ; Get the center of the shot.
+    adc $02  ; Get the center of the shot.
     sbc $00
     bpl +  ; If the result is positive, great!
     eor #$ff  ; Otherwise, negate it.
@@ -759,9 +760,9 @@ CheckCollision:
 +
     sta $05  ; Save dx for later.
     ; Find dy.
-    lda $03
+    lda $04
     clc
-    adc $04  ; Get the center of the shot.
+    adc $02  ; Get the center of the shot.
     sbc $01
     bpl +  ; If the result is positive, great!
     eor #$ff  ; Otherwise, negate it.
@@ -780,6 +781,9 @@ CheckCollision:
 
 
 CheckCollisionsWithPlayer:
+    lda #2  ; Half of shot's size.
+    sta $02
+
     ; Store player position statically.
     clc
     lda playerX
@@ -793,42 +797,107 @@ CheckCollisionsWithPlayer:
     sta $01
 
     ldx #0
---
+-
     lda enemyShotArray, X
     cmp #0  ; Check whether it's active.
-    beq ++
+    beq +
 
     lda enemyShotArray + 1, X  ; x.
-    sta $02
-    lda enemyShotArray + 2, X  ; y.
     sta $03
+    lda enemyShotArray + 2, X  ; y.
+    sta $04
     jsr CheckCollision
     cmp #0
-    beq ++
+    beq +
 
-    ; OK, we got a hit!
-    ; Disable the shot.
+    ; OK, we got a hit! Disable the shot.
     lda #0
     sta enemyShotArray, X
 
-    ; And decrement the player's life.
+    ; ... and decrement the player's life.
     lda playerHealth
     cmp #0
-    beq ++
+    beq +
     dec playerHealth
 
-++
++
     .rept shotSize
         inx
     .endr
 
     cpx #(enemyShotArrayLength * shotSize)
-    bne --
+    bne -
     rts
 
 
 
 CheckCollisionsWithEnemies:
+    lda #2  ; Half of shot's size.
+    sta $02
+
+    ldy #0  ; Index into enemyShipArray.
+--
+    lda enemyShipArray, Y
+    cmp #0  ; Check whether it's active.
+    beq ++
+
+    ; Store enemy position statically.
+    clc
+    lda enemyShipArray + 1, Y  ; x.
+    adc #16  ; Can't overflow.
+    sta $00  ; Store the center.
+    lda enemyShipArray + 2, Y  ; y.
+    adc #15
+    sta $01  ; Store the center.
+
+    ldx #0  ; Index into playerShotArray.
+-
+    lda playerShotArray, X
+    cmp #0
+    beq +
+
+    lda playerShotArray + 1, X  ; x.
+    sta $03
+    lda playerShotArray + 2, X  ; y.
+    sta $04
+    jsr CheckCollision
+    cmp #0
+    beq +
+
+    ; OK, we got a hit! Disable the shot.
+    lda #0
+    sta playerShotArray, X
+
+    ; ... and also the enemy ship.
+    sta enemyShipArray, Y
+
+    ; Give that player some points. Players love points.
+    ; TODO: convert to decimal only at display time?
+    SetA16Bit
+    sed  ; Set decimal mode.
+    clc
+    lda playerScore
+    adc #8
+    sta playerScore
+    cld  ; Clear decimal mode.
+    SetA8Bit
+    bra ++  ; ... we're done with this ship; no need to check more shots.
+
++
+    .rept shotSize
+        inx
+    .endr
+
+    cpx #(playerShotArrayLength * shotSize)
+    bne -
+
+++
+    .rept enemyShipSize
+        iny
+    .endr
+
+    cpy #(enemyShipArrayLength * enemyShipSize)
+    bne --
     rts
 
 
