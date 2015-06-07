@@ -504,6 +504,7 @@ UpdateWorld:
     jsr CheckCollisionsWithEnemies
 
     jsr UpdateBackgroundScroll
+    jsr UpdateHighScore
     rts
 
 
@@ -959,6 +960,18 @@ UpdateBackgroundScroll:
 
 
 
+UpdateHighScore:
+    SetA16Bit
+    lda playerScore
+    cmp highScore
+    bcc +
+    sta highScore
++
+    SetA8Bit
+    rts
+
+
+
 UpdateSprites:  ; TODO: refactor into smaller pieces.
     ; This page is a good reference on SNES sprite formats:
     ; http://wiki.superfamicom.org/snes/show/SNES+Sprites
@@ -1094,7 +1107,7 @@ UpdateSprites:  ; TODO: refactor into smaller pieces.
 +
 
     ; Sprites to show player score.
-    lda #(252 - 7 * 6)
+    lda #76
     sta $00  ; x-position
     lda #212
     sta $01  ; y-position
@@ -1107,6 +1120,35 @@ UpdateSprites:  ; TODO: refactor into smaller pieces.
     inc $03  ; Render rightmost zero always.
     lda #0
     jsr RenderTwoDigits
+
+    ; Sprites to show high score.
+    lda #(252 - 7 * 6)
+    sta $00
+    lda #212
+    sta $01
+    stz $02
+    stz $03
+    lda highScore + 1
+    jsr RenderTwoDigits
+    lda highScore
+    jsr RenderTwoDigits
+    inc $03  ; Render rightmost zero always.
+    lda #0
+    jsr RenderTwoDigits
+
+    ; The little "HI" sprite next to high-score.
+    lda #(252 - 7 * 7 - 2)
+    sta spriteTableStart, X
+    lda #212
+    sta spriteTableStart + 1, X
+    lda #74
+    sta spriteTableStart + 2, X
+    ; Set priority bits so that the sprite is drawn in front.
+    lda #%00110000
+    sta spriteTableStart + 3, X
+    lda #%01000000  ; Enable small sprite.
+    sta spriteTableScratchStart, Y
+    AdvanceSpritePointers
 
     ; Now clear out the unused entries in the sprite table.
 -

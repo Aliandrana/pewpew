@@ -5,6 +5,7 @@
 ; 0014-0016: 24-bit counter of vblanks.
 ; 0017-0019: RGB color values to use for background color, from [0-31].
 ; 001A-001B: 16-bit pointer to next random byte.
+; 001C-001D: 16-bit high-score.
 ; [gap]
 ; 0020-0021: (x, y) coordinates of player.
 ; 0022: player health.
@@ -31,6 +32,7 @@
 .define backgroundGreen $18
 .define backgroundBlue $19
 .define randomBytePtr $1A
+.define highScore $1C
 .define playerX $20
 .define playerY $21
 .define playerHealth $22
