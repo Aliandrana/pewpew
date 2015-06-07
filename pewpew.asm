@@ -747,7 +747,6 @@ ShotDone:
 ; $02: half of the shot's size.
 ; $03: x-coordinate of shot's upper-left.
 ; $04: y-coordinate of shot's upper-left.
-
 ;
 ; Modifies:
 ; $05
@@ -885,7 +884,7 @@ CheckCollisionsWithEnemies:
     sed  ; Set decimal mode.
     lda playerScore
     clc
-    adc #1
+    adc #1  ; We can't just "inc"; it doesn't know about decimal mode.
     sta playerScore
     cld  ; Clear decimal mode.
     SetA8Bit
@@ -1061,86 +1060,19 @@ UpdateSprites:  ; TODO: refactor into smaller pieces.
 +
 
     ; Sprites to show player score.
-    ; TODO: refactor how player score is displayed.
-    ; First digit.
-    lda playerScore
-    and #$0F
-    clc
-    adc #64  ; Base index of digit sprites.
-    sta spriteTableStart + 2, X  ; sprite number
-
-    lda #(252 - 7)
-    sta spriteTableStart, X  ; x
+    lda #(252 - 7 * 6)
+    sta $00  ; x-position
     lda #212
-    sta spriteTableStart + 1, X  ; y
-
-    ; Set priority bits so that the sprite is drawn in front.
-    lda #%00110000
-    sta spriteTableStart + 3, X
-    lda #%01000000  ; Enable small sprite.
-    sta spriteTableScratchStart, Y
-    AdvanceSpritePointers
-
-    ; Second digit.
-    lda playerScore
-    .rept 4
-        lsr
-    .endr
-    clc
-    adc #64  ; Base index of digit sprites.
-    sta spriteTableStart + 2, X  ; sprite number
-
-    lda #(252 - 7 * 2)
-    sta spriteTableStart, X  ; x
-    lda #212
-    sta spriteTableStart + 1, X  ; y
-
-    ; Set priority bits so that the sprite is drawn in front.
-    lda #%00110000
-    sta spriteTableStart + 3, X
-    lda #%01000000  ; Enable small sprite.
-    sta spriteTableScratchStart, Y
-    AdvanceSpritePointers
-
-    ; Third digit.
+    sta $01  ; y-position
+    stz $02  ; Don't render leading zeroes.
+    stz $03  ; ... not even for the second digit.
     lda playerScore + 1
-    and #$0F
-    clc
-    adc #64  ; Base index of digit sprites.
-    sta spriteTableStart + 2, X  ; sprite number
-
-    lda #(252 - 7 * 3)
-    sta spriteTableStart, X  ; x
-    lda #212
-    sta spriteTableStart + 1, X  ; y
-
-    ; Set priority bits so that the sprite is drawn in front.
-    lda #%00110000
-    sta spriteTableStart + 3, X
-    lda #%01000000  ; Enable small sprite.
-    sta spriteTableScratchStart, Y
-    AdvanceSpritePointers
-
-    ; Fourth digit.
-    lda playerScore + 1
-    .rept 4
-        lsr
-    .endr
-    clc
-    adc #64  ; Base index of digit sprites.
-    sta spriteTableStart + 2, X  ; sprite number
-
-    lda #(252 - 7 * 4)
-    sta spriteTableStart, X  ; x
-    lda #212
-    sta spriteTableStart + 1, X  ; y
-
-    ; Set priority bits so that the sprite is drawn in front.
-    lda #%00110000
-    sta spriteTableStart + 3, X
-    lda #%01000000  ; Enable small sprite.
-    sta spriteTableScratchStart, Y
-    AdvanceSpritePointers
+    jsr RenderTwoDigits
+    lda playerScore
+    jsr RenderTwoDigits
+    inc $03  ; Render rightmost zero always.
+    lda #0
+    jsr RenderTwoDigits
 
     ; Now clear out the unused entries in the sprite table.
 -
@@ -1151,6 +1083,98 @@ UpdateSprites:  ; TODO: refactor into smaller pieces.
     AdvanceSpritePointers
     bra -
 +
+    rts
+
+
+
+; Expects:
+; A: number to display (a byte where each nybble is from 0-9).
+; X/Y: pointing at appropriate locations into the sprite tables.
+; $00: x-position to render the leftmost digit into.
+; $01: y-position to render the leftmost digit into.
+; $02: if set, render leading zeroes.
+; $03: if set, always render the zero for the low-order digit.
+;
+; Updates:
+; X & Y to point at the next locations in the sprite tables.
+; The sprite tables, to add (up to) 2 sprites for digits.
+; $00: x-position to render additional digits into.
+; $02: whether to render leading zeroes.
+; $04-$06 (scratch).
+RenderTwoDigits:
+    ; Store the high digit in $05 and the low digit in $06.
+    sta $06
+    .rept 4
+        lsr
+    .endr
+    sta $05
+    lda $06
+    and #$0F
+    sta $06
+
+    ; Render the first digit.
+    lda $05
+    jsr RenderDigit
+    lda $00
+    clc
+    adc #7
+    sta $00
+
+    ; Set "render zero" for rightmost digit to true if requested.
+    lda $02
+    ora $03
+    sta $02
+
+    ; Render the second digit.
+    lda $06
+    jsr RenderDigit
+    lda $00
+    clc
+    adc #7
+    sta $00
+    rts
+
+
+
+; Expects:
+; A: number to display (from 0-9).
+; X/Y: pointing at appropriate locations into the sprite tables.
+; $00: x-position to render the digit into.
+; $01: y-position to render the digit into.
+; $02: whether to render if the number is zero.
+;
+; Updates:
+; X & Y to point at the next locations in the sprite tables.
+; The sprite tables, to add (up to) 1 sprite for digits.
+; $02: whether to render further leading zeroes.
+; $04 (scratch).
+RenderDigit:
+    sta $04
+    cmp #0
+    bne +  ; Non-zero: render it regardless.
+    lda $02
+    cmp #0
+    bne +  ; Render because "render zeroes" is set.
+    rts  ; Nothing to render.
++
+    lda #1
+    sta $02  ; Render leading zeroes from here on out.
+    lda $04
+    clc
+    adc #64  ; Base index of digit sprites.
+    sta spriteTableStart + 2, X  ; sprite number
+
+    lda $00
+    sta spriteTableStart, X  ; x
+    lda $01
+    sta spriteTableStart + 1, X  ; y
+
+    ; Set priority bits so that the sprite is drawn in front.
+    lda #%00110000
+    sta spriteTableStart + 3, X
+    lda #%01000000  ; Enable small sprite.
+    sta spriteTableScratchStart, Y
+    AdvanceSpritePointers
     rts
 
 
