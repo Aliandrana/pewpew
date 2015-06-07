@@ -875,9 +875,9 @@ CheckCollisionsWithEnemies:
     ; TODO: convert to decimal only at display time?
     SetA16Bit
     sed  ; Set decimal mode.
-    clc
     lda playerScore
-    adc #8
+    clc
+    adc #1
     sta playerScore
     cld  ; Clear decimal mode.
     SetA8Bit
