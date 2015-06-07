@@ -484,6 +484,8 @@ UpdateWorld:
     jsr UpdateEnemyShips
 
     jsr CheckCollisionsWithPlayer
+    jsr CheckCollisionsWithEnemies
+
     jsr UpdateBackgroundScroll
     rts
 
@@ -730,6 +732,53 @@ ShotDone:
 
 
 
+; Expects:
+; $00: x-coordinate of ship's center.
+; $01: y-coordinate of ship's center.
+; $02: x-coordinate of shot's upper-left.
+; $03: y-coordinate of shot's upper-left.
+; $04: half of the shot's size.
+;
+; Modifies:
+; $05
+; A: set to non-zero if there was a collision, zero otherwise.
+CheckCollision:
+    lda $02
+    clc
+    adc $04  ; Get the center of the shot.
+    sbc $00
+    bpl +  ; If the result is positive, great!
+    eor #$ff  ; Otherwise, negate it.
+    inc A
++
+    ; A now contains dx, guaranteed to be positive.
+    cmp #18  ; Threshold for "successful hit".
+    bcc +
+    lda #0  ; Already too far to be a hit; bail.
+    rts
++
+    sta $05  ; Save dx for later.
+    ; Find dy.
+    lda $03
+    clc
+    adc $04  ; Get the center of the shot.
+    sbc $01
+    bpl +  ; If the result is positive, great!
+    eor #$ff  ; Otherwise, negate it.
+    inc A
++
+    ; A now contains dy, guaranteed to be positive.
+    clc
+    adc $05  ; Add dx.
+    cmp #18  ; Threshold for "successful hit".
+    lda #0
+    bcs +
+    lda #1  ; Got a hit.
++
+    rts
+
+
+
 CheckCollisionsWithPlayer:
     ; Store player position statically.
     clc
@@ -749,34 +798,13 @@ CheckCollisionsWithPlayer:
     cmp #0  ; Check whether it's active.
     beq ++
 
-    ; Find dx.
     lda enemyShotArray + 1, X  ; x.
-    clc
-    adc #2  ; Get the center of the shot.
-    sbc $00
-    bpl +  ; If the result is positive, great!
-    eor #$ff  ; Otherwise, negate it.
-    inc A
-+
-    ; A now contains dx, guaranteed to be positive.
-    cmp #18  ; Threshold for "successful hit".
-    bcs ++  ; Already too far; bail.
     sta $02
-
-    ; Find dy.
     lda enemyShotArray + 2, X  ; y.
-    clc
-    adc #2
-    sbc $01
-    bpl +  ; If the result is positive, great!
-    eor #$ff  ; Otherwise, negate it.
-    inc A
-+
-    ; A now contains dy, guaranteed to be positive.
-    clc
-    adc $02  ; Add dx.
-    cmp #18  ; Threshold for "successful hit".
-    bcs ++
+    sta $03
+    jsr CheckCollision
+    cmp #0
+    beq ++
 
     ; OK, we got a hit!
     ; Disable the shot.
@@ -800,6 +828,11 @@ CheckCollisionsWithPlayer:
 
 
 
+CheckCollisionsWithEnemies:
+    rts
+
+
+
 UpdateBackgroundScroll:
     ; Make the background scroll. Horizontal over time; vertical depending on
     ; player's y-coordinate.
@@ -813,7 +846,6 @@ UpdateBackgroundScroll:
     .endr
     sta BG3VOFS
     stz BG3VOFS
-
     rts
 
 
