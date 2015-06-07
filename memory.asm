@@ -45,7 +45,7 @@
 .define enemyShotArrayLength 32
 .define shotSize 6
 .define enemyShipArray $160
-.define enemyShipArrayLength 4
+.define enemyShipArrayLength 8
 .define enemyShipSize 6
 
 

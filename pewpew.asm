@@ -244,7 +244,7 @@ InitWorld:
     sta playerX
     lda #((224 - 32) / 2)
     sta playerY
-    lda #16
+    lda #10
     sta playerHealth
 
     ; (x-velocity, y-velocity) of 4 different player shot patterns.
@@ -529,9 +529,9 @@ SpawnEnemyShips:
     rts
 +
     GetRandomByte
-    and #%00111111
+    and #%00011111
     clc
-    adc #32
+    adc #16
     sta enemyShipSpawnCooldown
 
     ; Find an empty spot in the array.
@@ -562,6 +562,12 @@ SpawnEnemyShips:
 
     lda #0
     sta enemyShipArray + 3, Y  ; move AI type.
+    GetRandomByte
+    and #%00000011
+    cmp #1
+    beq +
+    lda #0
++
     sta enemyShipArray + 4, Y  ; shoot AI type.
 
     lda #12
@@ -584,7 +590,7 @@ UpdateEnemyShips:
     ; TODO: implement different movement based on AI-type.
     lda enemyShipArray + 1, Y  ; x
     clc
-    adc #-2  ; x-velocity.
+    adc #-3  ; x-velocity.
     bcs +
     lda #0
     sta enemyShipArray, Y  ; reap it.
@@ -608,7 +614,8 @@ UpdateEnemyShips:
     sta $02  ; Enemy ship x.
     lda enemyShipArray + 2, Y
     sta $03  ; Enemy ship y.
-
+    lda enemyShipArray + 4, Y
+    sta $04  ; Enemy ship shoot-AI type.
     phy
     ldy $00
     jsr SpawnEnemyShot
@@ -630,6 +637,7 @@ UpdateEnemyShips:
 ; Y: index into enemyShotArray (bytes).
 ; $02: enemy ship x-position.
 ; $03: enemy ship y-position.
+; $04: enemy ship shoot-AI type.
 ;
 ; Modifies:
 ; A.
@@ -667,9 +675,26 @@ SpawnEnemyShot:
     lda #-6
     sta enemyShotArray + 3, Y  ; x-velocity.
 
+    ; Choose velocities based on shoot AI type.
+    lda $04
+    cmp #1
+    beq +
+    ; Normal shot.
     lda #0
     sta enemyShotArray + 4, Y  ; y-velocity.
+    rts
 
+    ; Shot aimed toward player.
++
+    lda playerY
+    cmp $03
+    bcs +
+    lda #-2
+    sta enemyShotArray + 4, Y  ; y-velocity.
+    rts
++
+    lda #2
+    sta enemyShotArray + 4, Y  ; y-velocity.
     rts
 
 
