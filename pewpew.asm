@@ -139,7 +139,7 @@ LoadPaletteAndTileData:
     lda #:SpriteData
     sta DMA0SRCBANK
     ; DMA 0 transfer size.  Equal to the size of sprites32.pic.
-    ldx #2048
+    ldx #4096
     stx DMA0SIZE
     ; DMA 0 control register.
     ; Transfer type 001 = 2 addresses, LH.
@@ -227,7 +227,7 @@ InitWorld:
     sta playerX
     lda #((224 - 32) / 2)
     sta playerY
-    lda #20
+    lda #16
     sta playerHealth
 
     ; (x-velocity, y-velocity) of 4 different player shot patterns.
@@ -539,7 +539,7 @@ SpawnEnemyShips:
 
 -
     GetRandomByte
-    cmp #(224 - 32)
+    cmp #(224 - 32 - 8)
     bcs -  ; Keep trying.
     sta enemyShipArray + 2, Y  ; y.
 
@@ -1064,6 +1064,36 @@ UpdateSprites:  ; TODO: refactor into smaller pieces.
     inc $01
     bra -
 +
+
+    ; Sprites to show player score.
+    clc
+    lda #252
+    sta $00  ; Current x.
+    stz $01  ; Fake score.
+-
+    lda #64
+    adc $01
+    sta spriteTableStart + 2, X  ; sprite number
+    lda $00
+    sbc #7
+    sta $00
+    sta spriteTableStart, X  ; x
+    lda #212
+    sta spriteTableStart + 1, X  ; y
+    ; Set priority bits so that the sprite is drawn in front.
+    lda #%00110000
+    sta spriteTableStart + 3, X
+    lda #%01000000  ; Enable small sprite.
+    sta spriteTableScratchStart, Y
+    .rept 4
+        inx
+    .endr
+    iny
+
+    inc $01
+    lda $01
+    cmp #10
+    bne -
 
     ; Now clear out the unused entries in the sprite table.
 -
