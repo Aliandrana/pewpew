@@ -235,6 +235,8 @@ InitWorld:
     bne -
     SetA8Bit
 
+    jsr SetBackgroundColor
+
     ; Initial enemy ship-spawn cooldown.
     lda #30
     sta enemyShipSpawnCooldown
@@ -311,7 +313,6 @@ MainLoop:
 ++
     jsr UpdateSprites
     jsr FillSecondarySpriteTable
-    jsr SetBackgroundColor
     bra MainLoop
 
 
